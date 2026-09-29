@@ -1,4 +1,4 @@
-from shipcheck.models import Finding, Project
+from shipstate.models import Finding, Project
 
 
 def check_package_version(project: Project) -> Finding:

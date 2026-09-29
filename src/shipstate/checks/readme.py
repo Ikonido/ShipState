@@ -1,30 +1,9 @@
-import re
 from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-from shipcheck.checks.pins import extract_pins
-from shipcheck.models import Finding, InputError
-
-_HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
-_CHANGELOG_SECTION = re.compile(r"\b(?:changelog|release notes?)\b", re.IGNORECASE)
-
-
-def _without_changelog_sections(text: str) -> str:
-    kept: list[str] = []
-    changelog_level: int | None = None
-    for line in text.splitlines():
-        heading = _HEADING.match(line)
-        if heading:
-            level = len(heading.group(1))
-            if changelog_level is not None and level <= changelog_level:
-                changelog_level = None
-            if changelog_level is None and _CHANGELOG_SECTION.search(heading.group(2)):
-                changelog_level = level
-        if changelog_level is None:
-            kept.append(line)
-    return "\n".join(kept)
-
+from shipstate.checks.pins import extract_pins
+from shipstate.models import Finding, InputError
 
 def _same_version(actual: str, expected: str) -> bool:
     try:
@@ -49,7 +28,7 @@ def check_readme(root: Path, project_name: str, version: str) -> list[Finding]:
     except (OSError, UnicodeError) as exc:
         raise InputError("readme_unreadable", "README.md could not be read as UTF-8.") from exc
 
-    pins = extract_pins(_without_changelog_sections(text), project_name)
+    pins = extract_pins(text, project_name)
     if not pins:
         return [
             Finding(

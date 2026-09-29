@@ -1,4 +1,4 @@
-"""Backend-independent result types for ShipCheck checks."""
+"""Backend-independent result types for ShipState checks."""
 
 from dataclasses import dataclass
 from typing import Literal
@@ -32,6 +32,8 @@ class Project:
     version: str
     root: str
     has_build_system: bool
+    build_system_issue: str | None = None
+    build_system_warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,9 +45,9 @@ class CheckResult:
     def status(self) -> Literal["pass", "fail"]:
         return "fail" if any(item.severity == "fail" for item in self.findings) else "pass"
 
-    def to_dict(self, shipcheck_version: str) -> dict[str, object]:
+    def to_dict(self, shipstate_version: str) -> dict[str, object]:
         return {
-            "shipcheck_version": shipcheck_version,
+            "shipstate_version": shipstate_version,
             "status": self.status,
             "project": {"name": self.project.name, "version": self.project.version},
             "findings": [item.to_dict() for item in self.findings],
@@ -60,9 +62,9 @@ class InputError(Exception):
         self.code = code
         self.message = message
 
-    def to_dict(self, shipcheck_version: str) -> dict[str, object]:
+    def to_dict(self, shipstate_version: str) -> dict[str, object]:
         return {
-            "shipcheck_version": shipcheck_version,
+            "shipstate_version": shipstate_version,
             "status": "error",
             "error": {"code": self.code, "message": self.message},
         }

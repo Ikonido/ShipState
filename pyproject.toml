@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "shipcheck"
+name = "shipstate"
 version = "0.1.0"
-description = "Deterministic local checks for Python release-state consistency."
+description = "Keep release state consistent before you ship."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -23,12 +23,12 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Ikonido/ShipCheck"
-Repository = "https://github.com/Ikonido/ShipCheck"
-Issues = "https://github.com/Ikonido/ShipCheck/issues"
+Homepage = "https://github.com/Ikonido/ShipState"
+Repository = "https://github.com/Ikonido/ShipState"
+Issues = "https://github.com/Ikonido/ShipState/issues"
 
 [project.scripts]
-shipcheck = "shipcheck.cli:main"
+shipstate = "shipstate.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]

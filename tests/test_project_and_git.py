@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from shipcheck.checks.runner import check_project
-from shipcheck.models import InputError
-from shipcheck.project import load_project
+from shipstate.checks.runner import check_project
+from shipstate.models import InputError
+from shipstate.project import load_project
 
 from conftest import git
 
@@ -82,6 +82,23 @@ def test_supported_changelog_headings_pass(project_factory, heading):
     assert finding(result, "changelog_version_found").actual == "0.2.1"
 
 
+@pytest.mark.parametrize(
+    "heading",
+    ["## [0.2.1] - 2026-09-29", "### v0.2.1", "## [v0.2.1](https://example.invalid/releases/0.2.1)"],
+)
+def test_changelog_supports_dated_prefixed_and_linked_headings(project_factory, heading):
+    result = check_project(project_factory(changelog=f"{heading}\n\nNotes.\n"))
+
+    assert finding(result, "changelog_version_found").severity == "pass"
+
+
+@pytest.mark.parametrize("fence", ["```text\n## 0.2.1\n```", "~~~markdown\n# [0.2.1]\n~~~"])
+def test_changelog_heading_inside_fenced_code_is_ignored(project_factory, fence):
+    result = check_project(project_factory(changelog=f"Example:\n\n{fence}\n"))
+
+    assert finding(result, "changelog_version_missing").severity == "fail"
+
+
 def test_changelog_heading_must_be_exact(project_factory):
     result = check_project(project_factory(changelog="## 0.2.10\n"))
 
@@ -105,6 +122,25 @@ def test_non_git_directory_is_input_error(project_factory):
         check_project(root)
 
     assert exc_info.value.code == "not_git_repository"
+
+
+def test_git_os_error_is_reported_as_input_error(monkeypatch, tmp_path: Path):
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "example"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+
+    def fail_to_start(*args, **kwargs):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr("shipstate.git.subprocess.run", fail_to_start)
+
+    with pytest.raises(InputError) as exc_info:
+        check_project(root)
+
+    assert exc_info.value.code == "git_execution_failed"
 
 
 def test_dynamic_version_is_rejected(project_factory):
@@ -162,3 +198,46 @@ def test_invalid_project_version_is_input_error(tmp_path: Path):
         load_project(root)
 
     assert exc_info.value.code == "invalid_project_version"
+
+
+def test_project_name_with_surrounding_whitespace_is_rejected(project_factory):
+    root = project_factory(name=" meshcontract ")
+
+    with pytest.raises(InputError) as exc_info:
+        load_project(root)
+
+    assert exc_info.value.code == "project_name_invalid"
+
+
+def test_invalid_dynamic_metadata_is_input_error(project_factory):
+    root = project_factory()
+    pyproject = root / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "meshcontract"\nversion = "0.2.1"\ndynamic = "description"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InputError) as exc_info:
+        load_project(root)
+
+    assert exc_info.value.code == "invalid_project_dynamic"
+
+
+@pytest.mark.parametrize(
+    "build_system",
+    [
+        '[build-system]\nrequires = "setuptools"\nbuild-backend = "setuptools.build_meta"\n',
+        '[build-system]\nrequires = ["setuptools"]\nbuild-backend = "bad backend"\n',
+    ],
+)
+def test_malformed_build_system_fails(project_factory, build_system):
+    root = project_factory()
+    pyproject = root / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "meshcontract"\nversion = "0.2.1"\n\n' + build_system,
+        encoding="utf-8",
+    )
+
+    result = check_project(root)
+
+    assert finding(result, "build_system_invalid").severity == "fail"

@@ -3,18 +3,18 @@ import json
 import sys
 from pathlib import Path
 
-from shipcheck import __version__
-from shipcheck.models import InputError
-from shipcheck.output import render_json_error, render_json_result, render_text_error, render_text_result
-from shipcheck.checks.runner import check_project
+from shipstate import __version__
+from shipstate.models import InputError
+from shipstate.output import render_json_error, render_json_result, render_text_error, render_text_result
+from shipstate.checks.runner import check_project
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="shipcheck",
+        prog="shipstate",
         description="Check local Python release-state consistency.",
     )
-    parser.add_argument("--version", action="version", version=f"ShipCheck {__version__}")
+    parser.add_argument("--version", action="version", version=f"ShipState {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     check = commands.add_parser("check", help="check a Python project")
     check.add_argument("path", nargs="?", default=".", type=Path, help="project directory (default: current directory)")
