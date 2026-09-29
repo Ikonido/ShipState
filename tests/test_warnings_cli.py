@@ -1,0 +1,110 @@
+import json
+
+import pytest
+
+from shipcheck.cli import main
+from shipcheck.checks.runner import check_project
+
+
+def test_missing_license_and_build_system_are_warnings(project_factory):
+    root = project_factory(license_file=False, build_system=False)
+
+    result = check_project(root)
+
+    severities = {item.code: item.severity for item in result.findings}
+    assert severities["license_missing"] == "warn"
+    assert severities["build_system_missing"] == "warn"
+    assert result.status == "pass"
+
+
+def test_text_output_and_success_exit_code(project_factory, capsys):
+    root = project_factory()
+
+    exit_code = main(["check", str(root)])
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "ShipCheck 0.1.0" in output
+    assert "Project: meshcontract" in output
+    assert "PASS git tag: v0.2.1" in output
+    assert "Release consistency: PASS" in output
+
+
+def test_failure_has_exit_code_one(project_factory, capsys):
+    root = project_factory(readme="pip install meshcontract==0.2.0\n")
+
+    exit_code = main(["check", str(root)])
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "FAIL README pin: meshcontract==0.2.0" in output
+    assert "Release consistency: FAIL" in output
+
+
+def test_json_output_has_stable_result_shape(project_factory, capsys):
+    root = project_factory(readme="pip install meshcontract==0.2.0\n")
+
+    exit_code = main(["check", str(root), "--format", "json"])
+    result = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert result["shipcheck_version"] == "0.1.0"
+    assert result["status"] == "fail"
+    assert result["project"] == {"name": "meshcontract", "version": "0.2.1"}
+    drift = next(item for item in result["findings"] if item["code"] == "readme_version_drift")
+    assert drift == {
+        "code": "readme_version_drift",
+        "severity": "fail",
+        "source": "README.md",
+        "message": "README.md pins meshcontract to 0.2.0; expected 0.2.1.",
+        "actual": "0.2.0",
+        "expected": "0.2.1",
+    }
+
+
+def test_json_input_error_has_exit_code_two(tmp_path, capsys):
+    exit_code = main(["check", str(tmp_path), "--format", "json"])
+    result = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 2
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "pyproject_missing"
+
+
+def test_non_git_directory_has_exit_code_two(tmp_path, capsys):
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "example"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+
+    exit_code = main(["check", str(root), "--format", "json"])
+    result = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 2
+    assert result["error"]["code"] == "not_git_repository"
+
+
+def test_version_and_help_options(capsys):
+    with pytest.raises(SystemExit) as version_exit:
+        main(["--version"])
+    assert version_exit.value.code == 0
+    assert capsys.readouterr().out.strip() == "ShipCheck 0.1.0"
+
+    with pytest.raises(SystemExit) as help_exit:
+        main(["--help"])
+    assert help_exit.value.code == 0
+    assert "check" in capsys.readouterr().out
+
+
+def test_warnings_are_allowed_with_exit_code_zero(project_factory, capsys):
+    root = project_factory(license_file=False, build_system=False)
+
+    exit_code = main(["check", str(root)])
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "WARN license: LICENSE not found" in output
+    assert "WARN build system:" in output
+    assert "Release consistency: PASS" in output
