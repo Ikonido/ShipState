@@ -30,6 +30,7 @@ jobs:
         run: |
           python - <<'PY'
           import os
+          import subprocess
           import tomllib
           from pathlib import Path
 
@@ -38,8 +39,19 @@ jobs:
           actual = os.environ["RELEASE_TAG"]
           if actual != expected:
               raise SystemExit(f"release tag {actual!r} does not match {expected!r}")
-          tag_commit = os.popen(f"git rev-parse refs/tags/{actual}^{{}}").read().strip()
-          if not tag_commit or tag_commit != os.popen("git rev-parse HEAD").read().strip():
+          tagged_commit = subprocess.run(
+              ["git", "rev-parse", f"refs/tags/{actual}^{{}}"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.strip()
+          checked_out_commit = subprocess.run(
+              ["git", "rev-parse", "HEAD"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.strip()
+          if tagged_commit != checked_out_commit:
               raise SystemExit("checked-out commit does not match the release tag")
           PY
 
