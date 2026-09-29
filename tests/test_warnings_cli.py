@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from shipcheck.cli import main
-from shipcheck.checks.runner import check_project
+from shipstate.cli import main
+from shipstate.checks.runner import check_project
 
 
 def test_missing_license_and_build_system_are_warnings(project_factory):
@@ -17,6 +17,15 @@ def test_missing_license_and_build_system_are_warnings(project_factory):
     assert result.status == "pass"
 
 
+def test_empty_license_is_treated_as_missing(project_factory):
+    root = project_factory()
+    (root / "LICENSE").write_text("", encoding="utf-8")
+
+    result = check_project(root)
+
+    assert next(item for item in result.findings if item.code == "license_missing").severity == "warn"
+
+
 def test_text_output_and_success_exit_code(project_factory, capsys):
     root = project_factory()
 
@@ -24,7 +33,7 @@ def test_text_output_and_success_exit_code(project_factory, capsys):
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "ShipCheck 0.1.0" in output
+    assert "ShipState 0.1.0" in output
     assert "Project: meshcontract" in output
     assert "PASS git tag: v0.2.1" in output
     assert "Release consistency: PASS" in output
@@ -48,7 +57,7 @@ def test_json_output_has_stable_result_shape(project_factory, capsys):
     result = json.loads(capsys.readouterr().out)
 
     assert exit_code == 1
-    assert result["shipcheck_version"] == "0.1.0"
+    assert result["shipstate_version"] == "0.1.0"
     assert result["status"] == "fail"
     assert result["project"] == {"name": "meshcontract", "version": "0.2.1"}
     drift = next(item for item in result["findings"] if item["code"] == "readme_version_drift")
@@ -90,7 +99,7 @@ def test_version_and_help_options(capsys):
     with pytest.raises(SystemExit) as version_exit:
         main(["--version"])
     assert version_exit.value.code == 0
-    assert capsys.readouterr().out.strip() == "ShipCheck 0.1.0"
+    assert capsys.readouterr().out.strip() == "ShipState 0.1.0"
 
     with pytest.raises(SystemExit) as help_exit:
         main(["--help"])

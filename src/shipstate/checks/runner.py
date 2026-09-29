@@ -1,15 +1,15 @@
 from pathlib import Path
 
-from shipcheck.checks.build_system import check_build_system
-from shipcheck.checks.changelog import check_changelog
-from shipcheck.checks.license import check_license
-from shipcheck.checks.package_version import check_package_version
-from shipcheck.checks.readme import check_readme
-from shipcheck.checks.tag import check_tag
-from shipcheck.checks.workflows import check_workflows
-from shipcheck.git import get_git_context
-from shipcheck.models import CheckResult
-from shipcheck.project import load_project
+from shipstate.checks.build_system import check_build_system
+from shipstate.checks.changelog import check_changelog
+from shipstate.checks.license import check_license
+from shipstate.checks.package_version import check_package_version
+from shipstate.checks.readme import check_readme
+from shipstate.checks.tag import check_tag
+from shipstate.checks.workflows import check_workflows
+from shipstate.git import get_git_context
+from shipstate.models import CheckResult
+from shipstate.project import load_project
 
 
 def check_project(path: Path) -> CheckResult:

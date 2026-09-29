@@ -43,8 +43,8 @@ def project_factory(tmp_path: Path):
 
         if initialize_git:
             git(root, "init", "-q")
-            git(root, "config", "user.name", "ShipCheck tests")
-            git(root, "config", "user.email", "shipcheck-tests@example.invalid")
+            git(root, "config", "user.name", "ShipState tests")
+            git(root, "config", "user.email", "shipstate-tests@example.invalid")
             git(root, "add", ".")
             git(root, "commit", "-m", "initial project")
             if tag:

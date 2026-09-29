@@ -3,23 +3,40 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-from shipcheck.checks.pins import extract_pins
-from shipcheck.models import Finding, InputError
+from shipstate.checks.pins import extract_pins
+from shipstate.models import Finding, InputError
 
 _HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
-_CHANGELOG_SECTION = re.compile(r"\b(?:changelog|release notes?)\b", re.IGNORECASE)
+_CHANGELOG_SECTION = re.compile(r"^(?:changelog|release notes?)(?:\b.*)?$", re.IGNORECASE)
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
 
 def _without_changelog_sections(text: str) -> str:
     kept: list[str] = []
     changelog_level: int | None = None
+    fence_char: str | None = None
+    fence_size = 0
     for line in text.splitlines():
+        fence = _FENCE.match(line)
+        if fence_char is not None:
+            if fence and fence.group(1)[0] == fence_char and len(fence.group(1)) >= fence_size and not line[fence.end() :].strip():
+                fence_char = None
+                fence_size = 0
+            if changelog_level is None:
+                kept.append(line)
+            continue
+        if fence:
+            fence_char = fence.group(1)[0]
+            fence_size = len(fence.group(1))
+            if changelog_level is None:
+                kept.append(line)
+            continue
         heading = _HEADING.match(line)
         if heading:
             level = len(heading.group(1))
             if changelog_level is not None and level <= changelog_level:
                 changelog_level = None
-            if changelog_level is None and _CHANGELOG_SECTION.search(heading.group(2)):
+            if changelog_level is None and _CHANGELOG_SECTION.fullmatch(heading.group(2).strip()):
                 changelog_level = level
         if changelog_level is None:
             kept.append(line)

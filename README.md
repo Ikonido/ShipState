@@ -1,40 +1,40 @@
-# ShipCheck
+# ShipState
 
-Catch release-version drift before you ship.
+Keep release state consistent before you ship.
 
-ShipCheck checks that your Python package version, Git tag, CHANGELOG, README install examples and CI workflow pins agree.
+ShipState checks that your Python package version, Git tag, CHANGELOG, README install examples and CI workflow pins agree.
 
 ## Install from source
 
 Python 3.11 or newer is required. PyPI releases are not available yet.
 
-    git clone https://github.com/Ikonido/ShipCheck.git
-    cd ShipCheck
+    git clone https://github.com/Ikonido/ShipState.git
+    cd ShipState
     python -m pip install .
 
 ## Usage
 
-    shipcheck check .
-    shipcheck check /path/to/project
-    shipcheck check . --format json
-    shipcheck --version
-    shipcheck --help
+    shipstate check .
+    shipstate check /path/to/project
+    shipstate check . --format json
+    shipstate --version
+    shipstate --help
 
-ShipCheck runs locally. It does not contact GitHub, PyPI, or any other service.
+ShipState runs locally. It does not contact GitHub, PyPI, or any other service.
 
 ## What it checks
 
 - The static project name and PEP 440 version in pyproject.toml.
 - Whether the matching vVERSION Git tag points to the current HEAD commit.
-- Whether CHANGELOG.md has a heading for the current version.
+- Whether CHANGELOG.md has a real Markdown heading for the current version (headings in fenced examples are ignored).
 - Whether pinned installs of the project itself in README.md use the current version.
-- Whether pip install pins for the project itself in .github/workflows YAML files use the current version.
-- Whether a supported license file and a [build-system] section are present.
+- Whether pip install pins for the project itself in .github/workflows YAML files use the current version, including multiline commands and extras.
+- Whether a supported, non-empty license file and a structurally valid [build-system] table are present.
 
 For example, given a project named meshcontract at version 0.2.1:
 
-    $ shipcheck check .
-    ShipCheck 0.1.0
+    $ shipstate check .
+    ShipState 0.1.0
 
     Project: meshcontract
     Version: 0.2.1
@@ -57,11 +57,11 @@ For example, given a project named meshcontract at version 0.2.1:
 
 ## JSON mode
 
-Use --format json for stable machine-readable output. Successful checks return a top-level shipcheck_version, status, project object, and findings array. Each finding has code, severity, source, message, actual, and expected fields. Input and tool errors return status=error with an error code and message.
+Use --format json for stable machine-readable output. Successful checks return a top-level shipstate_version, status, project object, and findings array. Each finding has code, severity, source, message, actual, and expected fields. Input and tool errors return status=error with an error code and message.
 
 ## Scope and limitations
 
-Version 0.1 supports Python projects with a static version in pyproject.toml. It reads local files and invokes the local Git CLI only. It does not require a remote or make network requests. README and workflow pin detection is intentionally conservative and regex-based. It does not build packages or verify remote tags, releases, or registry contents.
+Version 0.1 supports Python projects with a static version in pyproject.toml. It reads local files and invokes the local Git CLI only. It does not require a remote or make network requests. README pin detection is regex-based. Workflow checks scan command text without fully parsing YAML or executing environment variables; unresolved dynamic version pins fail. The build-system check validates table fields, but does not invoke a package build or import the configured backend. ShipState does not verify remote tags, releases, or registry contents.
 
 ## Roadmap
 

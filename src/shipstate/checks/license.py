@@ -1,12 +1,22 @@
 from pathlib import Path
 
-from shipcheck.models import Finding
+from shipstate.models import Finding, InputError
 
 _LICENSE_NAMES = ("LICENSE", "LICENSE.md", "LICENSE.txt")
 
 
 def check_license(root: Path) -> Finding:
-    present = next((name for name in _LICENSE_NAMES if (root / name).is_file()), None)
+    present = None
+    for name in _LICENSE_NAMES:
+        path = root / name
+        if not path.is_file():
+            continue
+        try:
+            if path.stat().st_size > 0:
+                present = name
+                break
+        except OSError as exc:
+            raise InputError("license_unreadable", f"{name} could not be inspected.") from exc
     if present is None:
         return Finding(
             code="license_missing",

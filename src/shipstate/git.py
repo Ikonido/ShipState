@@ -4,7 +4,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from shipcheck.models import InputError
+from shipstate.models import InputError
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +29,8 @@ def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         raise InputError("git_unavailable", "The Git CLI could not be found.") from exc
     except subprocess.TimeoutExpired as exc:
         raise InputError("git_timeout", "The local Git command timed out.") from exc
+    except OSError as exc:
+        raise InputError("git_execution_failed", "The local Git command could not be started.") from exc
 
 
 def get_git_context(path: Path) -> GitContext:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from shipcheck.git import GitContext, version_tag_commit
-from shipcheck.models import Finding
+from shipstate.git import GitContext, version_tag_commit
+from shipstate.models import Finding
 
 
 def check_tag(path: Path, version: str, git: GitContext) -> Finding:
