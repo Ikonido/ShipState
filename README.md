@@ -27,8 +27,8 @@ ShipState runs locally. It does not contact GitHub, PyPI, or any other service.
 - The static project name and PEP 440 version in pyproject.toml.
 - Whether the matching vVERSION Git tag points to the current HEAD commit.
 - Whether CHANGELOG.md has a real Markdown heading for the current version (headings in fenced examples are ignored).
-- Whether pinned installs of the project itself in README.md use the current version.
-- Whether pip install pins for the project itself in .github/workflows YAML files use the current version, including multiline commands and extras.
+- Whether pinned installs of the project itself in README.md use the current version, with distribution-name case and separator variants normalized.
+- Whether pip install pins for the project itself in .github/workflows YAML files use the current version, including multiline commands and extras; dynamic version variables produce a warning.
 - Whether a supported, non-empty license file and a structurally valid [build-system] table are present.
 
 For example, given a project named meshcontract at version 0.2.1:
@@ -61,7 +61,7 @@ Use --format json for stable machine-readable output. Successful checks return a
 
 ## Scope and limitations
 
-Version 0.1 supports Python projects with a static version in pyproject.toml. It reads local files and invokes the local Git CLI only. It does not require a remote or make network requests. README pin detection is regex-based. Workflow checks scan command text without fully parsing YAML or executing environment variables; unresolved dynamic version pins fail. The build-system check validates table fields, but does not invoke a package build or import the configured backend. ShipState does not verify remote tags, releases, or registry contents.
+Version 0.1 supports Python projects with a static version in pyproject.toml. It reads local files and invokes the local Git CLI only. It does not require a remote or make network requests. README pin detection is regex-based. Workflow checks scan command text without fully parsing YAML or executing environment variables; statically stale self-pins fail, while unresolved dynamic versions warn. Missing build-system tables or required fields warn, and malformed fields fail. ShipState does not invoke a package build or import the configured backend, and it does not verify remote tags, releases, or registry contents.
 
 ## Roadmap
 
