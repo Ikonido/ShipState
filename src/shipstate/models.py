@@ -33,6 +33,7 @@ class Project:
     root: str
     has_build_system: bool
     build_system_issue: str | None = None
+    build_system_warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

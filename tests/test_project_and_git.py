@@ -226,12 +226,11 @@ def test_invalid_dynamic_metadata_is_input_error(project_factory):
 @pytest.mark.parametrize(
     "build_system",
     [
-        "[build-system]\n",
-        '[build-system]\nrequires = "setuptools"\n',
-        ' [build-system]\nrequires = ["setuptools"]\nbuild-backend = "bad backend"\n',
+        '[build-system]\nrequires = "setuptools"\nbuild-backend = "setuptools.build_meta"\n',
+        '[build-system]\nrequires = ["setuptools"]\nbuild-backend = "bad backend"\n',
     ],
 )
-def test_incomplete_build_system_fails(project_factory, build_system):
+def test_malformed_build_system_fails(project_factory, build_system):
     root = project_factory()
     pyproject = root / "pyproject.toml"
     pyproject.write_text(

@@ -47,6 +47,10 @@ def _finding_detail(finding: Finding) -> str:
         return "build system: present"
     if finding.code == "build_system_missing":
         return "build system: [build-system] not found"
+    if finding.code == "build_system_requires_missing":
+        return "build system: [build-system].requires not found"
+    if finding.code == "build_backend_missing":
+        return "build system: [build-system].build-backend not found"
     if finding.code == "build_system_invalid":
         return f"build system: {finding.message}"
     return finding.message

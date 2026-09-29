@@ -64,32 +64,41 @@ def load_project(path: Path) -> Project:
 
     build_system = data.get("build-system")
     build_system_issue = None
+    build_system_warnings: list[str] = []
     if "build-system" in data:
         if not isinstance(build_system, dict):
             build_system_issue = "[build-system] must be a table."
         else:
-            requirements = build_system.get("requires")
-            if not isinstance(requirements, list) or any(not isinstance(item, str) or not item.strip() for item in requirements):
-                build_system_issue = "[build-system].requires must be an array of valid requirement strings."
+            if "requires" not in build_system:
+                build_system_warnings.append("build_system_requires_missing")
             else:
-                try:
-                    for requirement in requirements:
-                        Requirement(requirement)
-                except InvalidRequirement:
-                    build_system_issue = "[build-system].requires contains an invalid requirement."
-            backend = build_system.get("build-backend")
-            if build_system_issue is None and backend is not None and (
-                not isinstance(backend, str) or not backend.strip()
-            ):
-                build_system_issue = "[build-system].build-backend must be a non-empty string when provided."
-            elif build_system_issue is None and backend is not None and not _BACKEND_RE.fullmatch(backend):
-                build_system_issue = "[build-system].build-backend must be a valid module or module:object reference."
+                requirements = build_system["requires"]
+                if not isinstance(requirements, list) or any(
+                    not isinstance(item, str) or not item.strip() for item in requirements
+                ):
+                    build_system_issue = "[build-system].requires must be an array of valid requirement strings."
+                else:
+                    try:
+                        for requirement in requirements:
+                            Requirement(requirement)
+                    except InvalidRequirement:
+                        build_system_issue = "[build-system].requires contains an invalid requirement."
+
+            if "build-backend" not in build_system:
+                build_system_warnings.append("build_backend_missing")
+            else:
+                backend = build_system["build-backend"]
+                if not isinstance(backend, str) or not backend.strip():
+                    build_system_issue = build_system_issue or "[build-system].build-backend must be a non-empty string."
+                elif not _BACKEND_RE.fullmatch(backend):
+                    build_system_issue = build_system_issue or "[build-system].build-backend must be a valid module or module:object reference."
+
             backend_path = build_system.get("backend-path")
-            if build_system_issue is None and backend_path is not None and (
+            if backend_path is not None and (
                 not isinstance(backend_path, list)
                 or any(not isinstance(item, str) or not item.strip() for item in backend_path)
             ):
-                build_system_issue = "[build-system].backend-path must be an array of non-empty strings."
+                build_system_issue = build_system_issue or "[build-system].backend-path must be an array of non-empty strings."
 
     return Project(
         name=name,
@@ -97,4 +106,5 @@ def load_project(path: Path) -> Project:
         root=str(path),
         has_build_system="build-system" in data,
         build_system_issue=build_system_issue,
+        build_system_warnings=tuple(build_system_warnings),
     )

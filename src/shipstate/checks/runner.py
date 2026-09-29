@@ -22,6 +22,6 @@ def check_project(path: Path) -> CheckResult:
         *check_readme(path, project.name, project.version),
         *check_workflows(path, project.name, project.version),
         check_license(path),
-        check_build_system(project),
+        *check_build_system(project),
     ]
     return CheckResult(project=project, findings=tuple(findings))

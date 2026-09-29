@@ -4,6 +4,7 @@ import pytest
 
 from shipstate.cli import main
 from shipstate.checks.runner import check_project
+from conftest import git
 
 
 def test_missing_license_and_build_system_are_warnings(project_factory):
@@ -24,6 +25,51 @@ def test_empty_license_is_treated_as_missing(project_factory):
     result = check_project(root)
 
     assert next(item for item in result.findings if item.code == "license_missing").severity == "warn"
+
+
+@pytest.mark.parametrize(
+    ("build_system", "expected_codes"),
+    [
+        ('build-backend = "setuptools.build_meta"\n', {"build_system_requires_missing"}),
+        ('requires = ["setuptools"]\n', {"build_backend_missing"}),
+        ("", {"build_system_requires_missing", "build_backend_missing"}),
+    ],
+)
+def test_missing_build_system_fields_are_warnings_with_exit_zero(
+    project_factory, capsys, build_system, expected_codes
+):
+    root = project_factory()
+    pyproject = root / "pyproject.toml"
+    original = pyproject.read_text(encoding="utf-8")
+    project_table = original.split("\n[build-system]\n", 1)[0]
+    pyproject.write_text(project_table + "\n\n[build-system]\n" + build_system, encoding="utf-8")
+    git(root, "add", "pyproject.toml")
+    git(root, "commit", "--amend", "--no-edit")
+    git(root, "tag", "-f", "v0.2.1")
+
+    result = check_project(root)
+    build_findings = [item for item in result.findings if item.code.startswith("build_")]
+
+    assert result.status == "pass"
+    assert {item.code for item in build_findings} == expected_codes
+    assert all(item.severity == "warn" for item in build_findings)
+    assert main(["check", str(root), "--format", "json"]) == 0
+    cli_result = json.loads(capsys.readouterr().out)
+    assert cli_result["status"] == "pass"
+
+
+def test_dynamic_workflow_warning_only_has_pass_status_and_exit_zero(project_factory, capsys):
+    root = project_factory(workflow="run: pip install meshcontract==$VERSION\n")
+
+    exit_code = main(["check", str(root), "--format", "json"])
+    result = json.loads(capsys.readouterr().out)
+    warning = next(item for item in result["findings"] if item["code"] == "workflow_dynamic_version")
+
+    assert exit_code == 0
+    assert result["status"] == "pass"
+    assert warning["severity"] == "warn"
+    assert warning["actual"] == "$VERSION"
+    assert warning["expected"] == "0.2.1"
 
 
 def test_text_output_and_success_exit_code(project_factory, capsys):

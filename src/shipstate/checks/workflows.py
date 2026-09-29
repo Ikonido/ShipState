@@ -157,9 +157,9 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
         findings.append(
             Finding(
                 code="workflow_dynamic_version",
-                severity="fail",
+                severity="warn",
                 source=source,
-                message=f"Workflow install uses an unresolvable {project_name} version {actual}.",
+                message=f"A dynamic version cannot be verified statically for {project_name}.",
                 actual=actual,
                 expected=version,
             )
