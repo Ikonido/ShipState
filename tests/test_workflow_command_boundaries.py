@@ -137,13 +137,16 @@ def test_explicit_pip_environment_settings_warn_without_reading_constraint_only_
         only_warning(inspect(root), "workflow_pip_environment_ambiguous")
 
 
-@pytest.mark.parametrize("script", [
-    "PIP_REQUIREMENT=$REQ pip install requests",
-    "PIP_REQUIREMENT=missing.txt pip install requests",
-    "PIP_CONSTRAINT=../outside.txt pip install shipstate==0.0.1",
+@pytest.mark.parametrize("script, stale", [
+    ("PIP_REQUIREMENT=$REQ pip install requests", False),
+    ("PIP_REQUIREMENT=missing.txt pip install requests", False),
+    ("PIP_CONSTRAINT=../outside.txt pip install shipstate==0.0.1", True),
 ])
-def test_unresolved_pip_environment_does_not_establish_an_exact_install(tmp_path, script):
-    only_warning(inspect(project(tmp_path, script)), "workflow_pip_environment_ambiguous")
+def test_unresolved_pip_environment_warns_without_hiding_inline_drift(tmp_path, script, stale):
+    result = inspect(project(tmp_path, script))
+    assert any(f.code == "workflow_pip_environment_ambiguous" for f in result)
+    assert any(f.code == "workflow_version_drift" for f in result) == stale
+    assert not any(f.severity == "pass" for f in result)
 
 
 @pytest.mark.parametrize("script", [

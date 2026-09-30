@@ -95,6 +95,9 @@ as configuration ambiguity. This includes `PIP_REQUIREMENT`, `PIP_CONSTRAINT`,
 index settings and `PIP_CONFIG_FILE`: their values and referenced files are not
 interpreted or read. The scanner does not inspect ambient runner configuration;
 even `--isolated` with explicit pip environment settings conservatively warns.
+These warnings do not suppress a proven stale exact pin in the command's inline
+arguments. POSIX backslash-newline continuations are removed without adding a
+space; quoted assignment names are not treated as shell assignment prefixes.
 
 Local `-r` includes request packages; `-c` includes only constrain versions and
 never establish a self-package install on their own. A bare explicit self-package

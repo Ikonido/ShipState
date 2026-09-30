@@ -86,7 +86,8 @@ def _without_comment(line: str) -> str:
     return line
 
 
-def _logical_commands(text: str) -> list[str]:
+def _requirements_lines(text: str) -> list[str]:
+    """Requirements directives use their existing line-oriented preprocessing."""
     commands: list[str] = []
     pending = ""
     for line in text.splitlines():
@@ -105,8 +106,79 @@ def _logical_commands(text: str) -> list[str]:
     return commands
 
 
+def _logical_commands(text: str) -> list[str]:
+    """Join POSIX continuations without changing words or single-quoted text."""
+    commands = []
+    current: list[str] = []
+    quote = None
+    comment = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if comment:
+            if char != "\n":
+                index += 1
+                continue
+            comment = False
+        elif char == "\\" and quote != "'" and index + 1 < len(text):
+            following = text[index + 1]
+            if following != "\n":
+                current.extend((char, following))
+            index += 2
+            continue
+        elif quote:
+            if char == quote:
+                quote = None
+        elif char in {"'", '"'}:
+            quote = char
+        elif char == "#" and (not current or current[-1].isspace()):
+            comment = True
+            index += 1
+            continue
+        if char == "\n" and quote is None:
+            command = "".join(current).strip()
+            if command:
+                commands.append(command)
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    command = "".join(current).strip()
+    if command:
+        commands.append(command)
+    return commands
+
+
+class _ShellWords(list[str]):
+    """Unquoted argv plus the raw, unquoted assignment prefix length."""
+
+    def __init__(self, text: str):
+        super().__init__(shlex.split(text))
+        self.assignments = 0
+        index = 0
+        while match := re.match(r"\s*[A-Za-z_][A-Za-z0-9_]*=", text[index:]):
+            index += match.end()
+            quote = None
+            while index < len(text):
+                char = text[index]
+                if char == "\\" and quote != "'":
+                    index += 2
+                    continue
+                if quote:
+                    if char == quote:
+                        quote = None
+                elif char in {"'", '"'}:
+                    quote = char
+                elif char.isspace():
+                    break
+                index += 1
+            self.assignments += 1
+
+
 def _segments(command: str) -> list[list[str]]:
     """Split only unquoted chain operators, then let shlex unquote each segment."""
+    if "\n" in command:
+        raise ValueError("multiline quoted text is not interpreted")
     parts = []
     start = 0
     quote = None
@@ -136,14 +208,17 @@ def _segments(command: str) -> list[list[str]]:
             start = following
         index += 1
     parts.append(command[start:])
-    return [shlex.split(part) for part in parts if part.strip()]
+    return [_ShellWords(part) for part in parts if part.strip()]
 
 
 def _command_tokens(tokens: list[str]) -> list[str]:
+    tokens = tokens[getattr(tokens, "assignments", 0):]
     if tokens and tokens[0] == "env":
         tokens = tokens[1:]
-    while tokens and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[0]):
-        tokens = tokens[1:]
+        # env receives argv strings: unlike shell assignment words, quoting
+        # an env utility argument does not stop it being an assignment.
+        while tokens and re.match(r"[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
+            tokens = tokens[1:]
     return tokens
 
 
@@ -200,10 +275,16 @@ def _pip_environment(mapping: dict, inherited: bool = False) -> bool:
 
 def _pip_assignments(tokens: list[str]) -> bool:
     """Recognize configuration names, without evaluating values or shell state."""
+    count = getattr(tokens, "assignments", 0)
+    if any(token.startswith("PIP_") for token in tokens[:count]):
+        return True
+    tokens = tokens[count:]
     if tokens and tokens[0] in {"env", "export"}:
         tokens = tokens[1:]
+    else:
+        return False
     for token in tokens:
-        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token):
+        if not re.match(r"[A-Za-z_][A-Za-z0-9_]*=", token):
             break
         if token.startswith("PIP_"):
             return True
@@ -389,7 +470,7 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
             return
         active = active | {target}
         masked, expressions = _opaque_expressions(text)
-        for line in _logical_commands(masked):
+        for line in _requirements_lines(masked):
             if line.startswith("-"):
                 try:
                     entries, nested = _pip_arguments(shlex.split(line))
@@ -508,15 +589,15 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
                         if command_tokens and command_tokens[0] not in {"echo", "printf"} and potential_install(_restore(" ".join(tokens), expressions), environment):
                             warn(source, "An install command cannot be interpreted reliably.", "workflow_install_ambiguous")
                         continue
-                    if environment or _pip_assignments(tokens):
+                    environment_ambiguous = environment or _pip_assignments(tokens)
+                    if environment_ambiguous:
                         warn(source, "Explicit pip environment configuration may change the effective install and is not interpreted.", "workflow_pip_environment_ambiguous")
-                        continue
                     try:
                         entries, references = _pip_arguments([_restore(arg, expressions) for arg in arguments])
                     except ValueError:
                         warn(source, "Pip arguments cannot be interpreted reliably.", "workflow_shell_ambiguous")
                         continue
-                    install = _Install()
+                    install = _Install(incomplete=environment_ambiguous)
                     known_directory = isinstance(working_directory, str) and "$" not in working_directory
                     directory = root / working_directory if known_directory else root
                     for entry in entries:
@@ -528,7 +609,7 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
                     if references and (cwd_changed or not known_directory):
                         warn(source, "Working directory may have changed before package installation; local requirement paths cannot be verified statically.", "workflow_working_directory_ambiguous")
                         install.incomplete = True
-                    else:
+                    elif not environment_ambiguous:
                         for reference, constraint in references:
                             read_requirements(reference, directory, source, set(), install, constraint)
                     finish_install(install)
