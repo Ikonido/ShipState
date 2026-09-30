@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Compare local release tags and changelog versions using PEP 440 equivalence.
+- Limit README pin checks to code examples and explicit install commands to reduce prose false positives.
+- Restrict test workflow permissions and pin its actions to immutable commits.
+
 - Preserve distribution-name separators during pin normalization.
 - Parse workflow YAML run steps and inspect local requirements/constraints includes.
 - Warn about unresolved includes and uncommitted Git changes.

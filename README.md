@@ -64,7 +64,12 @@ Use --format json for stable machine-readable output. Successful checks return a
 
 Version 0.1 supports Python projects with a static version in pyproject.toml.
 It reads local files and invokes the local Git CLI only. It does not require a
-remote or make network requests. README pin detection is regex-based. Package
+remote or make network requests. Release tags and changelog headings use PEP 440
+version equivalence. If multiple
+equivalent tags exist, each must point to HEAD. README pin detection is regex-based
+and limited to fenced/inline code and explicit install lines; ordinary prose is
+ignored. Code spans and blocks are treated as examples, including dependency
+snippets, so historical pins in code can still be reported. Package
 names follow Python distribution normalization: `ship-state`, `ship_state` and
 `ship.state` are equivalent, while `shipstate` is a different name.
 

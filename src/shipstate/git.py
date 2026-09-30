@@ -4,6 +4,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from packaging.version import InvalidVersion, Version
+
 from shipstate.models import InputError
 
 
@@ -55,3 +57,19 @@ def version_tag_commit(path: Path, version: str) -> str | None:
     tag_ref = f"refs/tags/v{version}^{{}}"
     result = _git(["rev-parse", "--verify", "--quiet", tag_ref], path)
     return result.stdout.strip() if result.returncode == 0 else None
+
+
+def equivalent_version_tags(path: Path, version: str) -> list[str]:
+    """List local v-prefixed tags equivalent under PEP 440, without changing refs."""
+    result = _git(["tag", "--list", "v*"], path)
+    if result.returncode != 0:
+        raise InputError("git_tags_unavailable", "Local Git tags could not be inspected.")
+    expected = Version(version)
+    tags = []
+    for tag in result.stdout.splitlines():
+        try:
+            if Version(tag[1:]) == expected:
+                tags.append(tag)
+        except InvalidVersion:
+            continue
+    return sorted(tags)

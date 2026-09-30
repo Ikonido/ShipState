@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from packaging.version import InvalidVersion, Version
+
 from shipstate.models import Finding, InputError
 
 _ATX_HEADING = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
@@ -8,9 +10,8 @@ _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
 def _has_version_heading(text: str, version: str) -> bool:
-    escaped = re.escape(version)
     version_heading = re.compile(
-        rf"^(?:v{escaped}|{escaped}|\[v?{escaped}\](?:\([^)]*\))?(?:\[[^]]*\])?)(?:[ \t]+.*)?$",
+        r"^(?:v?([^\s\[\]]+)|\[v?([^\]]+)\](?:\([^)]*\))?(?:\[[^]]*\])?)(?:[ \t]+.*)?$",
         re.IGNORECASE,
     )
     fence_char: str | None = None
@@ -27,8 +28,13 @@ def _has_version_heading(text: str, version: str) -> bool:
             fence_size = len(fence.group(1))
             continue
         heading = _ATX_HEADING.match(line)
-        if heading and version_heading.fullmatch(heading.group(2).strip()):
-            return True
+        candidate = version_heading.fullmatch(heading.group(2).strip()) if heading else None
+        if candidate:
+            try:
+                if Version(candidate.group(1) or candidate.group(2)) == Version(version):
+                    return True
+            except InvalidVersion:
+                continue
     return False
 
 
