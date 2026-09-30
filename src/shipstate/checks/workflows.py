@@ -112,6 +112,7 @@ def _logical_commands(text: str) -> list[str]:
     current: list[str] = []
     quote = None
     comment = False
+    in_word = False
     index = 0
     while index < len(text):
         char = text[index]
@@ -124,6 +125,7 @@ def _logical_commands(text: str) -> list[str]:
             following = text[index + 1]
             if following != "\n":
                 current.extend((char, following))
+                in_word = True
             index += 2
             continue
         elif quote:
@@ -131,15 +133,21 @@ def _logical_commands(text: str) -> list[str]:
                 quote = None
         elif char in {"'", '"'}:
             quote = char
-        elif char == "#" and (not current or current[-1].isspace()):
+            in_word = True
+        elif char == "#" and not in_word:
             comment = True
             index += 1
             continue
+        else:
+            # Unquoted operators end a word even without whitespace. Braces
+            # are reserved words, so '{#suffix' still belongs to one word.
+            in_word = not (char.isspace() or char in ";&|()<>")
         if char == "\n" and quote is None:
             command = "".join(current).strip()
             if command:
                 commands.append(command)
             current = []
+            in_word = False
         else:
             current.append(char)
         index += 1
