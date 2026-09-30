@@ -9,7 +9,7 @@ description = "Keep release state consistent before you ship."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-dependencies = ["packaging>=23.2"]
+dependencies = ["packaging>=23.2", "PyYAML>=6.0"]
 authors = [{ name = "Vladyslav Rudenko" }]
 classifiers = [
   "Development Status :: 3 - Alpha",

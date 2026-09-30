@@ -2,7 +2,7 @@
 
 import re
 import tomllib
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.version import InvalidVersion, Version
@@ -99,6 +99,25 @@ def load_project(path: Path) -> Project:
                 or any(not isinstance(item, str) or not item.strip() for item in backend_path)
             ):
                 build_system_issue = build_system_issue or "[build-system].backend-path must be an array of non-empty strings."
+            elif backend_path is not None:
+                try:
+                    root = path.resolve()
+                    for item in backend_path:
+                        candidate = Path(item)
+                        resolved = (root / candidate).resolve()
+                        if (
+                            candidate.is_absolute()
+                            or PureWindowsPath(item).is_absolute()
+                            or not resolved.is_relative_to(root)
+                            or not resolved.is_dir()
+                        ):
+                            build_system_issue = build_system_issue or (
+                                "[build-system].backend-path entries must be relative paths "
+                                "to existing directories inside the project."
+                            )
+                            break
+                except (OSError, RuntimeError, ValueError):
+                    build_system_issue = build_system_issue or "[build-system].backend-path could not be resolved."
 
     return Project(
         name=name,

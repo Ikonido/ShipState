@@ -11,6 +11,7 @@ from shipstate.models import InputError
 class GitContext:
     root: Path
     head: str
+    dirty: bool = False
 
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -44,7 +45,10 @@ def get_git_context(path: Path) -> GitContext:
         root = Path(root_result.stdout.strip()).resolve()
     except OSError as exc:
         raise InputError("git_root_unavailable", "The Git repository root could not be resolved.") from exc
-    return GitContext(root=root, head=head_result.stdout.strip())
+    status = _git(["status", "--porcelain=v1", "-z", "--untracked-files=normal", "--ignore-submodules=none"], path)
+    if status.returncode != 0:
+        raise InputError("git_status_unavailable", "The Git working tree could not be inspected.")
+    return GitContext(root=root, head=head_result.stdout.strip(), dirty=bool(status.stdout))
 
 
 def version_tag_commit(path: Path, version: str) -> str | None:

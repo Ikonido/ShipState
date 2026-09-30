@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Preserve distribution-name separators during pin normalization.
+- Parse workflow YAML run steps and inspect local requirements/constraints includes.
+- Warn about unresolved includes and uncommitted Git changes.
+- Reject backend-path entries outside the project or pointing to missing directories.
+
 ## 0.1.0
 
 - Add Python release-consistency checks for project metadata, Git tags on HEAD, changelog version headings, and supported non-empty LICENSE files.
