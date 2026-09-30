@@ -30,10 +30,10 @@ def test_readme_extra_self_pin_is_checked(project_factory):
     assert drift.actual == "0.2.0"
 
 
-@pytest.mark.parametrize("dependency_name", ["shipstate", "ShipState", "ship-state", "ship_state", "ship.state"])
+@pytest.mark.parametrize("dependency_name", ["ship-state", "SHIP_STATE", "ship.state", "ship___state", "Ship--State"])
 def test_readme_distribution_name_variants_are_checked(project_factory, dependency_name):
     result = check_project(
-        project_factory(name="shipstate", readme=f"pip install {dependency_name}==0.2.0\n")
+        project_factory(name="ship-state", readme=f"pip install {dependency_name}==0.2.0\n")
     )
 
     drift = next(item for item in result.findings if item.code == "readme_version_drift")
@@ -159,10 +159,10 @@ def test_workflow_shell_continuations_allow_current_self_pin(project_factory, in
     assert "workflow_version_drift" not in codes(result)
 
 
-@pytest.mark.parametrize("dependency_name", ["shipstate", "ShipState", "ship-state", "ship_state", "ship.state"])
+@pytest.mark.parametrize("dependency_name", ["ship-state", "SHIP_STATE", "ship.state", "ship___state", "Ship--State"])
 def test_workflow_distribution_name_variants_are_checked(project_factory, dependency_name):
     root = project_factory(
-        name="shipstate",
+        name="ship-state",
         workflow=f"run: pip install {dependency_name}==0.2.0\n",
     )
 
@@ -186,8 +186,9 @@ def test_workflow_comment_lines_and_inline_comment_pins_are_ignored(project_fact
     result = check_project(
         project_factory(
             workflow=(
-                "# pip install meshcontract==0.2.0\n"
-                "python -m pip install pytest  # meshcontract==0.2.0\n"
+                    "run: |\n"
+                    "  # pip install meshcontract==0.2.0\n"
+                    "  python -m pip install pytest  # meshcontract==0.2.0\n"
             )
         )
     )
@@ -198,7 +199,7 @@ def test_workflow_comment_lines_and_inline_comment_pins_are_ignored(project_fact
 
 def test_workflow_real_pin_before_inline_comment_is_still_checked(project_factory):
     result = check_project(
-        project_factory(workflow="pip install meshcontract==0.2.0  # real command\n")
+        project_factory(workflow="run: pip install meshcontract==0.2.0  # real command\n")
     )
 
     assert result.status == "fail"

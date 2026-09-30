@@ -8,7 +8,7 @@ from shipstate.checks.readme import check_readme
 from shipstate.checks.tag import check_tag
 from shipstate.checks.workflows import check_workflows
 from shipstate.git import get_git_context
-from shipstate.models import CheckResult
+from shipstate.models import CheckResult, Finding
 from shipstate.project import load_project
 
 
@@ -18,6 +18,16 @@ def check_project(path: Path) -> CheckResult:
     findings = [
         check_package_version(project),
         check_tag(path, project.version, git),
+        Finding(
+            code="git_worktree_dirty" if git.dirty else "git_worktree_clean",
+            severity="warn" if git.dirty else "pass",
+            source="git",
+            message=(
+                "The Git working tree has staged, unstaged, or untracked changes; "
+                "the release tag does not capture them."
+                if git.dirty else "The Git working tree is clean."
+            ),
+        ),
         check_changelog(path, project.version),
         *check_readme(path, project.name, project.version),
         *check_workflows(path, project.name, project.version),

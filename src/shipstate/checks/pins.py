@@ -7,15 +7,13 @@ from packaging.utils import canonicalize_name
 
 def _package_prefix(project_name: str) -> str:
     normalized = _distribution_key(project_name)
-    package = r"[-_.]*".join(re.escape(char) for char in normalized)
+    package = r"[-_.]+".join(re.escape(part) for part in normalized.split("-"))
     extras = r"(?:\[[A-Za-z0-9_.-]+(?:[ \t]*,[ \t]*[A-Za-z0-9_.-]+)*\])?"
     return rf"(?<![A-Za-z0-9_.-])(?P<package>{package}){extras}(?![A-Za-z0-9_.-])"
 
 
 def _distribution_key(name: str) -> str:
-    # PEP 503 canonicalization handles case and separators; treating their
-    # presence as optional also covers established spellings like ship-state.
-    return canonicalize_name(name).replace("-", "")
+    return canonicalize_name(name)
 
 
 def package_pin_pattern(project_name: str) -> re.Pattern[str]:

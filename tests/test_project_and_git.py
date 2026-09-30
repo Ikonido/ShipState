@@ -23,6 +23,7 @@ def test_complete_project_passes(project_factory):
     assert {item.code for item in result.findings} == {
         "package_version_valid",
         "version_tag_matches_head",
+        "git_worktree_clean",
         "changelog_version_found",
         "readme_pin_matches",
         "workflow_pin_matches",
