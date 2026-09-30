@@ -17,7 +17,7 @@ _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _INLINE = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)")
 _INSTALL = re.compile(
     r"^(?:(?:[-*+] |\d+[.)] )?(?:\$ )?|Install (?:with |using )?)"
-    r"(?:pip(?:3|\d+\.\d+)?|python(?:3|\d+\.\d+)? -m pip|uv pip)\s+install\s+",
+    r"(?:pip(?:3|\d+\.\d+)?|python(?:3|\d+\.\d+)?\s+-m\s+pip|uv\s+pip)\s+install\s+",
     re.IGNORECASE,
 )
 
@@ -28,6 +28,8 @@ def _pin_contexts(text: str) -> str:
     fence_char = None
     fence_size = 0
     for line in text.splitlines():
+        # Remove quote markers before recognizing fences and install examples.
+        line = re.sub(r"^ {0,3}(?:>[ \t]*)+", "", line)
         fence = _FENCE.match(line)
         if fence_char:
             if fence and fence.group(1)[0] == fence_char and len(fence.group(1)) >= fence_size and not fence.group(2).strip():
