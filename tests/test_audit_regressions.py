@@ -38,7 +38,7 @@ def test_full_workflow_yaml_folded_run_is_checked(project_factory):
     assert "workflow_version_drift" in codes(result)
 
 
-@pytest.mark.parametrize("flag", ["-r requirements.txt", "-rrequirements.txt", "--requirement=requirements.txt", "-c requirements.txt"])
+@pytest.mark.parametrize("flag", ["-r requirements.txt", "-rrequirements.txt", "--requirement=requirements.txt"])
 def test_workflow_checks_local_requirement_pins(project_factory, flag):
     root = project_factory(workflow=f"run: python -m pip install {flag}\n")
     (root / "requirements.txt").write_text('meshcontract[dev]==0.0.1 ; python_version >= "3.11"\n')

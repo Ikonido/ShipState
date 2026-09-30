@@ -1,7 +1,8 @@
-"""Inspect YAML run steps and local pip requirements without executing commands."""
+"""Inspect a limited static shell syntax; warn when an install is uncertain."""
 
 import re
 import shlex
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -9,8 +10,50 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
-from shipstate.checks.pins import dynamic_pin_pattern, extract_pins
+from shipstate.checks.pins import dynamic_pin_pattern
 from shipstate.models import Finding, InputError
+
+
+_GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
+_VALUE_OPTIONS = {
+    "-i", "--index-url", "--extra-index-url", "-f", "--find-links", "-t", "--target",
+    "--prefix", "--root", "--cache-dir", "--log", "--timeout", "--retries",
+    "--proxy", "--cert", "--client-cert", "--trusted-host", "--python",
+    "--config-settings", "-C", "--platform", "--python-version", "--implementation", "--abi",
+}
+_FLAG_OPTIONS = {
+    "-U", "--upgrade", "--pre", "--no-deps", "--no-cache-dir", "--require-hashes",
+    "--force-reinstall", "--ignore-installed", "--no-build-isolation", "--disable-pip-version-check",
+    "-q", "--quiet", "-v", "--verbose", "--user", "--break-system-packages",
+    "--no-input", "--no-compile", "--compile", "--prefer-binary", "--use-pep517",
+}
+
+
+@dataclass
+class _Install:
+    requested: list[tuple[str, Requirement]] = field(default_factory=list)
+    constraints: list[tuple[str, Requirement]] = field(default_factory=list)
+    incomplete: bool = False
+
+
+def _opaque_expressions(text: str) -> tuple[str, dict[str, str]]:
+    prefix = "__shipstate_expression_"
+    while prefix in text:
+        prefix = "_" + prefix
+    expressions: dict[str, str] = {}
+
+    def replace(match: re.Match[str]) -> str:
+        token = f"{prefix}{len(expressions)}__"
+        expressions[token] = match.group()
+        return token
+
+    return _GITHUB_EXPRESSION.sub(replace, text), expressions
+
+
+def _restore(text: str, expressions: dict[str, str]) -> str:
+    for token, expression in expressions.items():
+        text = text.replace(token, expression)
+    return text
 
 
 def _without_comment(line: str) -> str:
@@ -53,74 +96,131 @@ def _logical_commands(text: str) -> list[str]:
     return commands
 
 
-def _install_arguments(command: str) -> list[list[str]]:
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
-    lexer.whitespace_split = True
-    lexer.commenters = ""
-    segments: list[list[str]] = [[]]
-    for token in lexer:
-        if token and all(char in ";&|" for char in token):
-            segments.append([])
-        else:
-            segments[-1].append(token)
-    installs = []
-    for tokens in segments:
-        if tokens and tokens[0] == "env":
-            tokens = tokens[1:]
-        while tokens and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[0]):
-            tokens = tokens[1:]
-        if len(tokens) >= 2 and re.fullmatch(r"pip[0-9.]*", tokens[0]) and tokens[1] == "install":
-            installs.append(tokens[2:])
-        elif (
-            len(tokens) >= 4 and re.fullmatch(r"python[0-9.]*", tokens[0])
-            and tokens[1:4] == ["-m", "pip", "install"]
-        ):
-            installs.append(tokens[4:])
-        elif tokens[:3] == ["uv", "pip", "install"]:
-            installs.append(tokens[3:])
-    return installs
+def _segments(command: str) -> list[list[str]]:
+    """Split only unquoted chain operators, then let shlex unquote each segment."""
+    parts = []
+    start = 0
+    quote = None
+    escaped = False
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = None
+        elif char in {"'", '"'}:
+            quote = char
+        elif char in ";&|":
+            parts.append(command[start:index])
+            following = index + 1
+            while following < len(command) and command[following] in ";&|":
+                following += 1
+            if command[index:following] not in {";", "&&", "||"}:
+                raise ValueError("pipes and background commands are not interpreted")
+            index = following - 1
+            start = following
+        index += 1
+    parts.append(command[start:])
+    return [shlex.split(part) for part in parts if part.strip()]
 
 
-def _requirement_files(arguments: list[str]) -> list[str]:
-    paths = []
+def _command_tokens(tokens: list[str]) -> list[str]:
+    if tokens and tokens[0] == "env":
+        tokens = tokens[1:]
+    while tokens and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[0]):
+        tokens = tokens[1:]
+    return tokens
+
+
+def _install_arguments(tokens: list[str]) -> list[str] | None:
+    tokens = _command_tokens(tokens)
+    if len(tokens) >= 2 and re.fullmatch(r"pip[0-9.]*", tokens[0]) and tokens[1] == "install":
+        return tokens[2:]
+    if len(tokens) >= 4 and re.fullmatch(r"python[0-9.]*", tokens[0]) and tokens[1:4] == ["-m", "pip", "install"]:
+        return tokens[4:]
+    if tokens[:3] == ["uv", "pip", "install"]:
+        return tokens[3:]
+    return None
+
+
+def _pip_arguments(arguments: list[str]) -> tuple[list[str], list[tuple[str, bool]]]:
+    entries = []
+    references = []
     index = 0
     while index < len(arguments):
         token = arguments[index]
-        if token in {"-r", "--requirement", "-c", "--constraint"}:
-            index += 1
-            paths.append(arguments[index] if index < len(arguments) else "")
-        elif token.startswith(("--requirement=", "--constraint=")):
-            paths.append(token.split("=", 1)[1])
-        elif token.startswith(("-r", "-c")) and not token.startswith("--") and len(token) > 2:
-            paths.append(token[2:])
+        option, _, value = token.partition("=")
+        if option in {"-r", "--requirement", "-c", "--constraint", "-e", "--editable"}:
+            if "=" not in token:
+                index += 1
+                if index >= len(arguments):
+                    raise ValueError("missing pip option value")
+                value = arguments[index]
+            if option in {"-e", "--editable"}:
+                entries.append("-e " + value)
+            else:
+                references.append((value, option in {"-c", "--constraint"}))
+        elif token.startswith(("-r", "-c", "-e")) and not token.startswith("--") and len(token) > 2:
+            if token.startswith("-e"):
+                entries.append("-e " + token[2:])
+            else:
+                references.append((token[2:], token.startswith("-c")))
+        elif option in _VALUE_OPTIONS:
+            if "=" not in token:
+                index += 1
+                if index >= len(arguments):
+                    raise ValueError("missing pip option value")
+        elif token in _FLAG_OPTIONS:
+            pass
+        elif token.startswith("-"):
+            raise ValueError("unsupported pip option")
+        else:
+            if index + 2 < len(arguments) and arguments[index + 1] == "@":
+                token += " @ " + arguments[index + 2]
+                index += 2
+            entries.append(token)
         index += 1
-    return paths
+    return entries, references
 
 
-def _working_directory(mapping: dict, fallback: object = ".") -> object:
+def _run_default(mapping: dict, name: str, fallback: object) -> object:
     defaults = mapping.get("defaults", {})
     run = defaults.get("run", {}) if isinstance(defaults, dict) else {}
-    return run.get("working-directory", fallback) if isinstance(run, dict) else fallback
+    return run.get(name, fallback) if isinstance(run, dict) else fallback
+
+
+def _runner_shell(runner: object) -> str:
+    # Missing runs-on is allowed for workflow excerpts used by local callers.
+    if runner is None:
+        return "bash"
+    labels = runner if isinstance(runner, list) else [runner]
+    if any(isinstance(label, str) and (label.lower() in {"linux", "macos"} or label.lower().startswith(("ubuntu-", "macos-"))) for label in labels):
+        return "bash"
+    return "unknown"
 
 
 def _run_steps(document: dict):
-    # A standalone run mapping is useful for small workflow excerpts as well.
     if isinstance(document.get("run"), str):
-        yield document["run"], document.get("working-directory", ".")
+        yield document["run"], document.get("working-directory", "."), document.get("shell", "bash")
     jobs = document.get("jobs", {})
     if not isinstance(jobs, dict):
         return
-    default = _working_directory(document)
+    default_directory = _run_default(document, "working-directory", ".")
     for job in jobs.values():
         if not isinstance(job, dict):
             continue
         steps = job.get("steps", [])
         if not isinstance(steps, list):
             continue
-        working_directory = _working_directory(job, default)
+        directory = _run_default(job, "working-directory", default_directory)
+        shell = _run_default(job, "shell", _run_default(document, "shell", _runner_shell(job.get("runs-on"))))
         for step in steps:
             if isinstance(step, dict) and isinstance(step.get("run"), str):
-                yield step["run"], step.get("working-directory", working_directory)
+                yield step["run"], step.get("working-directory", directory), step.get("shell", shell)
 
 
 def _same_version(actual: str, expected: str) -> bool:
@@ -130,75 +230,138 @@ def _same_version(actual: str, expected: str) -> bool:
         return False
 
 
+def _exact_version(requirement: Requirement) -> str | None:
+    specs = list(requirement.specifier)
+    if requirement.url or len(specs) != 1 or specs[0].operator != "==" or "*" in specs[0].version:
+        return None
+    return specs[0].version
+
+
 def check_workflows(root: Path, project_name: str, version: str) -> list[Finding]:
     root = root.resolve()
     workflow_dir = root / ".github" / "workflows"
-    try:
-        files = sorted(
-            (path for path in workflow_dir.iterdir() if path.is_file() and path.suffix.lower() in {".yml", ".yaml"}),
-            key=lambda item: item.name.casefold(),
-        ) if workflow_dir.is_dir() else []
-    except OSError as exc:
-        raise InputError("workflow_unreadable", "The workflow directory could not be inspected.") from exc
-
     pins: list[tuple[str, str]] = []
-    dynamic_pins: list[tuple[str, str]] = []
     warnings: list[Finding] = []
 
-    def warn(source: str, message: str) -> None:
-        finding = Finding(
-            code="workflow_requirements_unchecked", severity="warn", source=source, message=message,
-        )
+    def warn(source: str, message: str, code: str = "workflow_requirements_unchecked", actual: str | None = None) -> None:
+        finding = Finding(code=code, severity="warn", source=source, message=message, actual=actual,
+                          expected=version if code == "workflow_dynamic_version" else None)
         if finding not in warnings:
             warnings.append(finding)
 
-    def read_requirements(reference: str, directory: Path, source: str, active: set[Path]) -> None:
+    def potential_install(script: str) -> bool:
+        package = r"[-_.]+".join(re.escape(part) for part in canonicalize_name(project_name).split("-"))
+        self_name = re.search(rf"(?<![A-Za-z0-9_.-]){package}(?![A-Za-z0-9_.-])", script, re.IGNORECASE)
+        installer = re.search(r"\b(?:pip[0-9.]*|python[0-9.]*\s+-m\s+pip|uv\s+pip)\s+install\b", script)
+        return bool(installer and (self_name or "$" in script or re.search(r"(?:-r|-c|--requirement|--constraint|-e|--editable|install\s+\.)", script)))
+
+    def collect(text: str, directory: Path, source: str, install: _Install, constraint: bool = False) -> None:
+        candidate = re.match(r"[A-Za-z0-9][A-Za-z0-9_.-]*", text)
+        is_self = candidate is not None and canonicalize_name(candidate.group()) == canonicalize_name(project_name)
+        if is_self and "$" in text:
+            match = dynamic_pin_pattern(project_name).search(text)
+            actual = match.group("version") if match else text
+            warn(source, f"A dynamic version cannot be verified statically for {project_name}.", "workflow_dynamic_version", actual)
+            install.incomplete = True
+            return
+        local = text.removeprefix("-e ")
+        if text.startswith("-e ") or local == "." or local.startswith(("./", "../", "/", "~", "file:")):
+            try:
+                current_project = "$" not in local and (directory / local).resolve() == root
+            except (OSError, RuntimeError, ValueError):
+                current_project = False
+            warn(source, "A local project install has no statically pinned distribution version." if current_project else "A local install cannot be verified as the current project statically.",
+                 "workflow_local_project_install" if current_project else "workflow_requirements_unchecked")
+            install.incomplete = True
+            return
+        try:
+            requirement = Requirement(text)
+        except InvalidRequirement:
+            warn(source, "A requirements entry could not be verified statically.")
+            install.incomplete = True
+            return
+        if canonicalize_name(requirement.name) == canonicalize_name(project_name):
+            (install.constraints if constraint else install.requested).append((source, requirement))
+
+    def read_requirements(reference: str, directory: Path, source: str, active: set[Path], install: _Install, constraint: bool = False) -> None:
         if not reference or "$" in reference or "://" in reference:
             warn(source, f"Requirements reference {reference!r} cannot be verified statically.")
+            install.incomplete = True
             return
         try:
             target = (directory / reference).resolve()
             if not target.is_relative_to(root):
                 warn(source, "Requirements paths outside the project are not inspected.")
+                install.incomplete = True
                 return
             label = target.relative_to(root).as_posix()
             if target in active:
                 warn(label, "A cyclic requirements include cannot be verified.")
+                install.incomplete = True
                 return
             text = target.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeError, RuntimeError, ValueError):
             warn(source, f"Requirements reference {reference!r} could not be read.")
+            install.incomplete = True
             return
         active = active | {target}
-        for line in _logical_commands(text):
+        masked, expressions = _opaque_expressions(text)
+        for line in _logical_commands(masked):
             if line.startswith("-"):
                 try:
-                    nested = _requirement_files(shlex.split(line))
+                    entries, nested = _pip_arguments(shlex.split(line))
                 except ValueError:
-                    warn(label, "A requirements directive could not be parsed.")
+                    warn(label, "A requirements directive could not be parsed statically.")
+                    install.incomplete = True
                     continue
-                for reference in nested:
-                    read_requirements(reference, target.parent, label, active)
-                continue
-            requirement_text = re.split(r"\s+--hash(?:=|\s)", line, maxsplit=1)[0]
-            try:
-                requirement = Requirement(requirement_text)
-            except InvalidRequirement:
-                warn(label, "A requirements entry could not be verified statically.")
-                continue
-            if canonicalize_name(requirement.name) != canonicalize_name(project_name):
-                continue
-            exact = [spec.version for spec in requirement.specifier if spec.operator == "==" and "*" not in spec.version]
-            if exact:
-                pins.extend((label, pin) for pin in exact)
+                for entry in entries:
+                    collect(_restore(entry, expressions), target.parent, label, install, constraint)
+                for child, child_constraint in nested:
+                    read_requirements(_restore(child, expressions), target.parent, label, active, install, constraint or child_constraint)
             else:
-                warn(label, f"The requirement for {project_name} has no statically verifiable exact version.")
+                entry = re.split(r"\s+--hash(?:=|\s)", line, maxsplit=1)[0]
+                collect(_restore(entry, expressions), target.parent, label, install, constraint)
+
+    def finish_install(install: _Install) -> None:
+        for source, requirement in install.requested:
+            exact = _exact_version(requirement)
+            if exact is not None:
+                if any(c.url or c.marker or not c.specifier.contains(exact, prereleases=True) for _, c in install.constraints):
+                    warn(source, "Constraints do not establish a consistent install for the requested exact version.", "workflow_version_not_exact")
+                else:
+                    pins.append((source, exact))
+                continue
+            # Only a bare explicitly requested self package can inherit an exact
+            # constraint. Do not implement dependency or general constraint resolution.
+            constraint_pins = [(label, _exact_version(c)) for label, c in install.constraints]
+            if (not requirement.specifier and not requirement.url and not requirement.marker
+                    and not install.incomplete and constraint_pins
+                    and all(not c.marker and not c.extras and not c.url for _, c in install.constraints)
+                    and all(pin is not None for _, pin in constraint_pins)
+                    and len({pin for _, pin in constraint_pins}) == 1):
+                pins.append((constraint_pins[0][0], constraint_pins[0][1]))
+            else:
+                warn(source, f"The requirement for {project_name} has no statically verifiable exact version.", "workflow_version_not_exact")
+
+    try:
+        if not workflow_dir.resolve().is_relative_to(root):
+            warn(".github/workflows", "Workflow directory outside the project is not inspected.", "workflow_outside_project")
+            return warnings
+        files = sorted((path for path in workflow_dir.iterdir() if path.suffix.lower() in {".yml", ".yaml"}), key=lambda item: item.name.casefold()) if workflow_dir.is_dir() else []
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise InputError("workflow_unreadable", "The workflow directory could not be inspected.") from exc
 
     for path in files:
         source = path.relative_to(root).as_posix()
         try:
-            document = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError) as exc:
+            resolved = path.resolve()
+            if not resolved.is_relative_to(root):
+                warn(source, "Workflow files outside the project are not inspected.", "workflow_outside_project")
+                continue
+            if not resolved.is_file():
+                continue
+            document = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, RuntimeError, ValueError) as exc:
             raise InputError("workflow_unreadable", f"{source} could not be read as UTF-8.") from exc
         except yaml.YAMLError as exc:
             raise InputError("workflow_invalid_yaml", f"{source} is not valid YAML: {exc}") from exc
@@ -206,51 +369,77 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
             continue
         if not isinstance(document, dict):
             raise InputError("workflow_invalid_yaml", f"{source} must contain a YAML mapping.")
-        for script, working_directory in _run_steps(document):
-            for command in _logical_commands(script):
-                try:
-                    installs = _install_arguments(command)
-                except ValueError:
-                    warn(source, "A run command could not be parsed statically.")
-                    continue
-                for arguments in installs:
-                    joined = " ".join(arguments)
-                    pins.extend((source, pin) for pin in extract_pins(joined, project_name))
-                    dynamic_pins.extend(
-                        (source, match.group("version"))
-                        for match in dynamic_pin_pattern(project_name).finditer(joined)
-                    )
-                    references = _requirement_files(arguments)
-                    if not references:
+        for script, working_directory, shell in _run_steps(document):
+            potential = potential_install(script)
+            if not isinstance(shell, str) or shell not in {"bash", "sh"}:
+                if potential:
+                    warn(source, "The run step shell is not supported for static install analysis.", "workflow_shell_not_supported")
+                continue
+            masked, expressions = _opaque_expressions(script)
+            commands = _logical_commands(masked)
+            if not isinstance(working_directory, str):
+                warn(source, "The requirements working directory is not a string and cannot be resolved statically.", "workflow_working_directory_ambiguous")
+                continue
+            # Here-documents, substitutions and control flow need a shell parser.
+            if potential and any(re.search(r"<<|\$\(|`|(?:^|[;&|]\s*)(?:if|for|while|until|case|function)\b|\b[A-Za-z_]\w*\s*\(\s*\)\s*\{", command) for command in commands):
+                warn(source, "Shell constructs or documentation text cannot be interpreted reliably.", "workflow_shell_ambiguous")
+                continue
+            try:
+                segments_by_command = [_segments(command) for command in commands]
+            except ValueError:
+                if potential:
+                    warn(source, "A run block could not be parsed statically.", "workflow_shell_ambiguous")
+                continue
+            if potential and any(
+                _command_tokens(tokens) and _command_tokens(tokens)[0] in {"source", ".", "eval", "alias", "unalias", "exec", "trap"}
+                for segments in segments_by_command for tokens in segments
+            ):
+                warn(source, "Shell command definitions or sourced code cannot be interpreted reliably.", "workflow_shell_ambiguous")
+                continue
+            cwd_changed = False
+            for segments in segments_by_command:
+                for tokens in segments:
+                    command_tokens = _command_tokens(tokens)
+                    if command_tokens and command_tokens[0] in {"cd", "pushd", "popd", "Set-Location", "chdir"}:
+                        cwd_changed = True
                         continue
-                    if not isinstance(working_directory, str) or "$" in working_directory:
-                        warn(source, "The requirements working directory cannot be resolved statically.")
+                    arguments = _install_arguments(tokens)
+                    if arguments is None:
+                        if command_tokens and command_tokens[0] not in {"echo", "printf"} and potential_install(_restore(" ".join(tokens), expressions)):
+                            warn(source, "An install command cannot be interpreted reliably.", "workflow_shell_ambiguous")
                         continue
-                    for reference in references:
-                        read_requirements(reference, root / working_directory, source, set())
+                    try:
+                        entries, references = _pip_arguments([_restore(arg, expressions) for arg in arguments])
+                    except ValueError:
+                        warn(source, "Pip arguments cannot be interpreted reliably.", "workflow_shell_ambiguous")
+                        continue
+                    install = _Install()
+                    known_directory = isinstance(working_directory, str) and "$" not in working_directory
+                    directory = root / working_directory if known_directory else root
+                    for entry in entries:
+                        if (cwd_changed or not known_directory) and (entry.startswith("-e ") or entry == "." or entry.startswith(("./", "../"))):
+                            warn(source, "The local install working directory cannot be resolved statically.", "workflow_working_directory_ambiguous")
+                            install.incomplete = True
+                        else:
+                            collect(entry, directory, source, install)
+                    if references and (cwd_changed or not known_directory):
+                        warn(source, "Working directory may have changed before pip install; requirements path cannot be verified statically.", "workflow_working_directory_ambiguous")
+                        install.incomplete = True
+                    else:
+                        for reference, constraint in references:
+                            read_requirements(reference, directory, source, set(), install, constraint)
+                    finish_install(install)
 
     findings: list[Finding] = []
-    matching = [(source, pin) for source, pin in pins if _same_version(pin, version)]
-    drifting = sorted({(source, pin) for source, pin in pins if not _same_version(pin, version)})
+    matching = sorted({(source, pin) for source, pin in pins if _same_version(pin, version)})
     if matching:
-        source, actual = sorted(matching)[0]
-        findings.append(Finding(
-            code="workflow_pin_matches", severity="pass", source=source,
-            message=f"Workflow install pins {project_name} to version {version}.", actual=actual, expected=version,
-        ))
-    for source, actual in drifting:
-        findings.append(Finding(
-            code="workflow_version_drift", severity="fail", source=source,
-            message=f"Workflow install pins {project_name} to {actual}; expected {version}.", actual=actual, expected=version,
-        ))
-    for source, actual in sorted(set(dynamic_pins)):
-        findings.append(Finding(
-            code="workflow_dynamic_version", severity="warn", source=source,
-            message=f"A dynamic version cannot be verified statically for {project_name}.", actual=actual, expected=version,
-        ))
-    if not pins and not dynamic_pins:
-        findings.append(Finding(
-            code="workflow_pin_not_found", severity="pass", source=".github/workflows",
-            message=f"No pinned workflow install of {project_name} was found.",
-        ))
+        source, actual = matching[0]
+        findings.append(Finding(code="workflow_pin_matches", severity="pass", source=source,
+                                message=f"Workflow install pins {project_name} to version {version}.", actual=actual, expected=version))
+    for source, actual in sorted({(source, pin) for source, pin in pins if not _same_version(pin, version)}):
+        findings.append(Finding(code="workflow_version_drift", severity="fail", source=source,
+                                message=f"Workflow install pins {project_name} to {actual}; expected {version}.", actual=actual, expected=version))
+    if not pins and not warnings:
+        findings.append(Finding(code="workflow_pin_not_found", severity="pass", source=".github/workflows",
+                                message=f"No static self-package workflow install of {project_name} requires checking."))
     return findings + warnings
