@@ -15,6 +15,15 @@ from shipstate.models import Finding, InputError
 
 
 _GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
+_GLOBAL_FLAGS = {
+    "--disable-pip-version-check", "--isolated", "--no-input", "--no-cache-dir",
+    "--require-virtualenv", "--require-venv", "-q", "--quiet", "-v", "--verbose",
+}
+_GLOBAL_VALUES = {
+    "--log", "--proxy", "--timeout", "--retries", "--cert", "--client-cert",
+    "--cache-dir", "--trusted-host", "--exists-action", "--keyring-provider",
+}
+_DIRECTORY_COMMANDS = {"cd", "pushd", "popd", "Set-Location", "chdir"}
 _VALUE_OPTIONS = {
     "-i", "--index-url", "--extra-index-url", "-f", "--find-links", "-t", "--target",
     "--prefix", "--root", "--cache-dir", "--log", "--timeout", "--retries",
@@ -114,6 +123,8 @@ def _segments(command: str) -> list[list[str]]:
                 quote = None
         elif char in {"'", '"'}:
             quote = char
+        elif char in "()" or (char in "{}" and (index == 0 or command[index - 1].isspace() or command[index - 1] in ";&|")):
+            raise ValueError("shell grouping is not interpreted")
         elif char in ";&|":
             parts.append(command[start:index])
             following = index + 1
@@ -138,13 +149,65 @@ def _command_tokens(tokens: list[str]) -> list[str]:
 
 def _install_arguments(tokens: list[str]) -> list[str] | None:
     tokens = _command_tokens(tokens)
-    if len(tokens) >= 2 and re.fullmatch(r"pip[0-9.]*", tokens[0]) and tokens[1] == "install":
-        return tokens[2:]
-    if len(tokens) >= 4 and re.fullmatch(r"python[0-9.]*", tokens[0]) and tokens[1:4] == ["-m", "pip", "install"]:
-        return tokens[4:]
-    if tokens[:3] == ["uv", "pip", "install"]:
+    if tokens and re.fullmatch(r"pip(?:\d+(?:\.\d+)*)?", tokens[0]):
+        tokens = tokens[1:]
+    elif len(tokens) >= 3 and re.fullmatch(r"python[0-9.]*", tokens[0]) and tokens[1:3] == ["-m", "pip"]:
+        tokens = tokens[3:]
+    elif tokens[:3] == ["uv", "pip", "install"]:
         return tokens[3:]
+    else:
+        return None
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "install":
+            return tokens[index + 1:]
+        option, separator, value = token.partition("=")
+        if token in _GLOBAL_FLAGS or re.fullmatch(r"-(?:q+|v+)", token):
+            index += 1
+        elif option in _GLOBAL_VALUES:
+            if not separator:
+                index += 1
+                if index >= len(tokens) or tokens[index].startswith("-"):
+                    raise ValueError("missing global pip option value")
+            elif not value:
+                raise ValueError("missing global pip option value")
+            index += 1
+        elif token.startswith("-"):
+            raise ValueError("unsupported global pip option")
+        else:
+            return None
     return None
+
+
+def _changes_directory(tokens: list[str]) -> bool:
+    tokens = _command_tokens(tokens)
+    if tokens and tokens[0] in {"command", "builtin"}:
+        tokens = tokens[1:]
+        if tokens[:1] == ["-p"]:
+            tokens = tokens[1:]
+        if tokens[:1] == ["--"]:
+            tokens = tokens[1:]
+    return bool(tokens and tokens[0] in _DIRECTORY_COMMANDS)
+
+
+def _pip_environment(mapping: dict, inherited: bool = False) -> bool:
+    environment = mapping.get("env", {})
+    if not isinstance(environment, dict):
+        return True
+    return inherited or any(isinstance(key, str) and key.startswith("PIP_") for key in environment)
+
+
+def _pip_assignments(tokens: list[str]) -> bool:
+    """Recognize configuration names, without evaluating values or shell state."""
+    if tokens and tokens[0] in {"env", "export"}:
+        tokens = tokens[1:]
+    for token in tokens:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token):
+            break
+        if token.startswith("PIP_"):
+            return True
+    return False
 
 
 def _pip_arguments(arguments: list[str]) -> tuple[list[str], list[tuple[str, bool]]]:
@@ -205,7 +268,7 @@ def _runner_shell(runner: object) -> str:
 
 def _run_steps(document: dict):
     if isinstance(document.get("run"), str):
-        yield document["run"], document.get("working-directory", "."), document.get("shell", "bash")
+        yield document["run"], document.get("working-directory", "."), document.get("shell", "bash"), _pip_environment(document)
     jobs = document.get("jobs", {})
     if not isinstance(jobs, dict):
         return
@@ -218,9 +281,10 @@ def _run_steps(document: dict):
             continue
         directory = _run_default(job, "working-directory", default_directory)
         shell = _run_default(job, "shell", _run_default(document, "shell", _runner_shell(job.get("runs-on"))))
+        environment = _pip_environment(job, _pip_environment(document))
         for step in steps:
             if isinstance(step, dict) and isinstance(step.get("run"), str):
-                yield step["run"], step.get("working-directory", directory), step.get("shell", shell)
+                yield step["run"], step.get("working-directory", directory), step.get("shell", shell), _pip_environment(step, environment)
 
 
 def _same_version(actual: str, expected: str) -> bool:
@@ -249,11 +313,30 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
         if finding not in warnings:
             warnings.append(finding)
 
-    def potential_install(script: str) -> bool:
+    def potential_install(script: str, configuration: bool = False) -> bool:
         package = r"[-_.]+".join(re.escape(part) for part in canonicalize_name(project_name).split("-"))
-        self_name = re.search(rf"(?<![A-Za-z0-9_.-]){package}(?![A-Za-z0-9_.-])", script, re.IGNORECASE)
-        installer = re.search(r"\b(?:pip[0-9.]*|python[0-9.]*\s+-m\s+pip|uv\s+pip)\s+install\b", script)
-        return bool(installer and (self_name or "$" in script or re.search(r"(?:-r|-c|--requirement|--constraint|-e|--editable|install\s+\.)", script)))
+        masked, expressions = _opaque_expressions(script)
+        for command in _logical_commands(masked):
+            try:
+                segments = _segments(command)
+            except ValueError:
+                # Lexical fallback only: unsupported shell operators are never executed.
+                segments = [[command]]
+            for tokens in segments:
+                head = _command_tokens(tokens)
+                if head and head[0] in {"echo", "printf"}:
+                    continue
+                text = _restore(" ".join(tokens), expressions)
+                self_name = re.search(rf"(?<![A-Za-z0-9_.-]){package}(?![A-Za-z0-9_.-])", text, re.IGNORECASE)
+                pip = re.search(r"\bpip(?:\d+(?:\.\d+)*)?\b", text, re.IGNORECASE)
+                install = re.search(r"\binstall\b", text, re.IGNORECASE)
+                opaque_head = bool(head and "$" in _restore(head[0], expressions))
+                reference = re.search(r"(?:-r|-c|--requirement|--constraint|-e|--editable|install\s+\.)", text)
+                pip_setting = re.search(r"\bPIP_[A-Z_]+\s*=", text)
+                if ((pip and install and (self_name or "$" in text or reference or pip_setting or configuration))
+                        or (self_name and (install or opaque_head))):
+                    return True
+        return False
 
     def collect(text: str, directory: Path, source: str, install: _Install, constraint: bool = False) -> None:
         candidate = re.match(r"[A-Za-z0-9][A-Za-z0-9_.-]*", text)
@@ -369,8 +452,8 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
             continue
         if not isinstance(document, dict):
             raise InputError("workflow_invalid_yaml", f"{source} must contain a YAML mapping.")
-        for script, working_directory, shell in _run_steps(document):
-            potential = potential_install(script)
+        for script, working_directory, shell, environment in _run_steps(document):
+            potential = potential_install(script, environment)
             if not isinstance(shell, str) or shell not in {"bash", "sh"}:
                 if potential:
                     warn(source, "The run step shell is not supported for static install analysis.", "workflow_shell_not_supported")
@@ -388,7 +471,16 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
                 segments_by_command = [_segments(command) for command in commands]
             except ValueError:
                 if potential:
-                    warn(source, "A run block could not be parsed statically.", "workflow_shell_ambiguous")
+                    if re.search(r"\b(?:cd|pushd|popd|chdir|Set-Location)\b", " ".join(commands)):
+                        warn(source, "Working directory may have changed before package installation; local requirement paths cannot be verified statically.", "workflow_working_directory_ambiguous")
+                    else:
+                        warn(source, "A run block could not be parsed statically.", "workflow_shell_ambiguous")
+                continue
+            if potential and any(
+                _command_tokens(tokens) and "$" in _restore(_command_tokens(tokens)[0], expressions)
+                for segments in segments_by_command for tokens in segments
+            ):
+                warn(source, "An opaque executable cannot be interpreted as a static install command.", "workflow_install_ambiguous")
                 continue
             if potential and any(
                 _command_tokens(tokens) and _command_tokens(tokens)[0] in {"source", ".", "eval", "alias", "unalias", "exec", "trap"}
@@ -400,13 +492,24 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
             for segments in segments_by_command:
                 for tokens in segments:
                     command_tokens = _command_tokens(tokens)
-                    if command_tokens and command_tokens[0] in {"cd", "pushd", "popd", "Set-Location", "chdir"}:
+                    if _changes_directory(tokens):
                         cwd_changed = True
                         continue
-                    arguments = _install_arguments(tokens)
+                    if _pip_assignments(tokens) and (not command_tokens or command_tokens[0] == "export"):
+                        environment = True
+                        continue
+                    try:
+                        arguments = _install_arguments(tokens)
+                    except ValueError:
+                        if potential_install(_restore(" ".join(tokens), expressions), environment):
+                            warn(source, "Global pip options cannot be interpreted reliably.", "workflow_install_ambiguous")
+                        continue
                     if arguments is None:
-                        if command_tokens and command_tokens[0] not in {"echo", "printf"} and potential_install(_restore(" ".join(tokens), expressions)):
-                            warn(source, "An install command cannot be interpreted reliably.", "workflow_shell_ambiguous")
+                        if command_tokens and command_tokens[0] not in {"echo", "printf"} and potential_install(_restore(" ".join(tokens), expressions), environment):
+                            warn(source, "An install command cannot be interpreted reliably.", "workflow_install_ambiguous")
+                        continue
+                    if environment or _pip_assignments(tokens):
+                        warn(source, "Explicit pip environment configuration may change the effective install and is not interpreted.", "workflow_pip_environment_ambiguous")
                         continue
                     try:
                         entries, references = _pip_arguments([_restore(arg, expressions) for arg in arguments])
@@ -423,7 +526,7 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
                         else:
                             collect(entry, directory, source, install)
                     if references and (cwd_changed or not known_directory):
-                        warn(source, "Working directory may have changed before pip install; requirements path cannot be verified statically.", "workflow_working_directory_ambiguous")
+                        warn(source, "Working directory may have changed before package installation; local requirement paths cannot be verified statically.", "workflow_working_directory_ambiguous")
                         install.incomplete = True
                     else:
                         for reference, constraint in references:

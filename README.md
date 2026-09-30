@@ -83,7 +83,18 @@ operators are preserved. Here-documents, multiline quoting, substitutions,
 functions, sourced code and other unsupported shell flow warn when relevant.
 ShipState does not interpret `cd`, `pushd` or similar directory changes: subsequent
 requirements paths and local installs warn instead of being read from a guessed
-working directory. Arbitrary scripts and their effects are not inspected.
+working directory. Wrapped directory commands and shell grouping also warn when
+local requirement paths cannot be verified. Arbitrary scripts and their effects
+are not inspected.
+
+Known safe pip global options are accepted before `install`, with their declared
+argument counts. Unknown options, opaque executables and unsupported install-like
+commands warn instead of claiming that no pin exists. Explicit `PIP_*` settings
+in workflow/job/step `env`, inline assignments or preceding exports are treated
+as configuration ambiguity. This includes `PIP_REQUIREMENT`, `PIP_CONSTRAINT`,
+index settings and `PIP_CONFIG_FILE`: their values and referenced files are not
+interpreted or read. The scanner does not inspect ambient runner configuration;
+even `--isolated` with explicit pip environment settings conservatively warns.
 
 Local `-r` includes request packages; `-c` includes only constrain versions and
 never establish a self-package install on their own. A bare explicit self-package
