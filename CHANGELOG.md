@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep workflow finding order deterministic when file names differ only by case.
+- Check repository version metadata in tests and full release consistency in CI on version tags.
+- Move detailed limitations to docs and document development and release procedures.
+
 - Compare local release tags and changelog versions using PEP 440 equivalence.
 - Limit README pin checks to code examples and explicit install commands to reduce prose false positives.
 - Restrict test workflow permissions and pin its actions to immutable commits.
