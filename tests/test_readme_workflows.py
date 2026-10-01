@@ -43,7 +43,7 @@ def test_readme_distribution_name_variants_are_checked(project_factory, dependen
 
 def test_readme_non_changelog_heading_does_not_hide_a_pin(project_factory):
     result = check_project(
-        project_factory(readme="## Notes about the changelog parser\n\nmeshcontract==0.2.0\n")
+        project_factory(readme="## Notes about the changelog parser\n\npip install meshcontract==0.2.0\n")
     )
 
     assert result.status == "fail"
@@ -56,7 +56,7 @@ def test_readme_non_changelog_heading_does_not_hide_a_pin(project_factory):
 )
 def test_readme_named_sections_do_not_hide_stale_pins(project_factory, heading):
     result = check_project(
-        project_factory(readme=f"{heading}\n\nmeshcontract==0.2.0\n")
+        project_factory(readme=f"{heading}\n\npip install meshcontract==0.2.0\n")
     )
 
     assert result.status == "fail"
@@ -65,7 +65,7 @@ def test_readme_named_sections_do_not_hide_stale_pins(project_factory, heading):
 
 def test_readme_fenced_heading_does_not_hide_a_pin(project_factory):
     result = check_project(
-        project_factory(readme="```markdown\n## Changelog excerpt\n```\n\nmeshcontract==0.2.0\n")
+        project_factory(readme="```markdown\n## Changelog excerpt\n```\n\npip install meshcontract==0.2.0\n")
     )
 
     assert result.status == "fail"
