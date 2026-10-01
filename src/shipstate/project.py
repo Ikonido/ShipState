@@ -7,8 +7,8 @@ from pathlib import Path, PureWindowsPath
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.version import InvalidVersion, Version
 
-from shipstate.paths import resolve_project_file
 from shipstate.models import InputError, Project
+from shipstate.paths import resolve_project_file
 
 _PROJECT_NAME_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\Z")
 _BACKEND_RE = re.compile(

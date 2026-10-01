@@ -12,8 +12,9 @@ python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
-The `dev` extra provides pytest. CI runs the suite on Python 3.11 and 3.12;
-run both versions when available. Ruff, mypy, and Black are not configured.
+The `dev` extra provides pytest, ruff, and mypy. CI runs the suite on Python
+3.11 and 3.12; run 3.13 as well when available. Before committing,
+run `python -m ruff check .` and `python -m mypy`.
 Do not add new runtime dependencies or network access to the checker.
 
 ## Check ShipState itself
@@ -49,7 +50,7 @@ Record user-visible changes under `## Unreleased` in CHANGELOG.md.
    Update any actual self-package installation pins; leave test fixture versions alone.
    Update versioned README links to the new release tag (`/blob/vX.Y.Z/...`) so
    the PyPI description links to documentation for the released version.
-4. Run `python -m pytest` on Python 3.11 and 3.12. Optionally install `build twine`,
+4. Run `python -m pytest` on Python 3.11 and 3.12 (and 3.13 when available). Optionally install `build twine`,
    run `python -m build`, and run `python -m twine check dist/*` in a clean output directory.
 5. Commit the complete release metadata, then create `vX.Y.Z` on that commit.
 6. Run `shipstate check .` and its JSON form; require exit code 0 and no FAIL.

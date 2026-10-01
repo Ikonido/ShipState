@@ -1,12 +1,11 @@
 from pathlib import Path
 
 import pytest
+from conftest import git
 
 from shipstate.checks.runner import check_project
 from shipstate.models import InputError
 from shipstate.project import load_project
-
-from conftest import git
 
 
 def finding(result, code: str):

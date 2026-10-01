@@ -1,11 +1,11 @@
 import json
 
 import pytest
+from conftest import git
 
 from shipstate import __version__
-from shipstate.cli import main
 from shipstate.checks.runner import check_project
-from conftest import git
+from shipstate.cli import main
 
 
 def test_missing_license_and_build_system_are_warnings(project_factory):

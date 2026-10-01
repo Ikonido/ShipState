@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Report cyclic input file symlinks as `project_file_unresolvable` on Python 3.13, where `Path.resolve()` no longer raises.
+- Fix mypy errors, remove unused imports and sort imports; add ruff and mypy configuration.
+- Declare Python 3.13 in the package classifiers.
+
 ## 0.1.1
 
 - Reject top-level input file symlinks outside the project before reading their contents; report an input error while preserving internal symlink support.

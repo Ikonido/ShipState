@@ -10,7 +10,6 @@ import yaml
 from shipstate.checks.workflows import check_workflows
 from shipstate.cli import main
 
-
 NAME = "shipstate"
 VERSION = "0.1.0"
 

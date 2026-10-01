@@ -2,6 +2,7 @@ import json
 
 from shipstate.models import CheckResult, Finding, InputError
 
+
 def render_json_result(result: CheckResult, shipstate_version: str) -> str:
     return json.dumps(result.to_dict(shipstate_version), ensure_ascii=False, indent=2)
 

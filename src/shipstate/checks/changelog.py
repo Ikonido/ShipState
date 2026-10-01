@@ -3,8 +3,8 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-from shipstate.paths import resolve_project_file
 from shipstate.models import Finding, InputError
+from shipstate.paths import resolve_project_file
 
 _ATX_HEADING = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")

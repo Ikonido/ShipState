@@ -4,8 +4,9 @@ from pathlib import Path
 from packaging.version import InvalidVersion, Version
 
 from shipstate.checks.pins import extract_pins
-from shipstate.paths import resolve_project_file
 from shipstate.models import Finding, InputError
+from shipstate.paths import resolve_project_file
+
 
 def _same_version(actual: str, expected: str) -> bool:
     try:
