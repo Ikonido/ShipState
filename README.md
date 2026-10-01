@@ -1,5 +1,9 @@
 # ShipState
 
+[![CI](https://github.com/Ikonido/ShipState/actions/workflows/tests.yml/badge.svg)](https://github.com/Ikonido/ShipState/actions/workflows/tests.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Keep release state consistent before you ship.
 
 ShipState checks that your Python package version, Git tag, CHANGELOG, README install examples and CI workflow pins agree.
@@ -35,7 +39,7 @@ ShipState runs locally. It does not contact GitHub, PyPI, or any other service.
 For example, given a project named meshcontract at version 0.2.1:
 
     $ shipstate check .
-    ShipState 0.1.0
+    ShipState 0.1.1
 
     Project: meshcontract
     Version: 0.2.1
@@ -62,64 +66,16 @@ Use --format json for stable machine-readable output. Successful checks return a
 
 ## Scope and limitations
 
-Version 0.1 supports Python projects with a static version in pyproject.toml.
-It reads local files and invokes the local Git CLI only. It does not require a
-remote or make network requests. Release tags and changelog headings use PEP 440
-version equivalence. If multiple
-equivalent tags exist, each must point to HEAD. README pin detection is regex-based
-and limited to fenced/inline code and explicit install lines; ordinary prose is
-ignored. Code spans and blocks are treated as examples, including dependency
-snippets, so historical pins in code can still be reported. Package
-names follow Python distribution normalization: `ship-state`, `ship_state` and
-`ship.state` are equivalent, while `shipstate` is a different name.
+ShipState 0.1.x supports Python projects with a static version in `pyproject.toml`.
+It reads local files and uses only the local Git CLI, without network access.
+README pin detection uses regexes in code examples and explicit install lines.
+Workflow scanning supports a limited static subset of bash/sh; it executes no code.
+Dynamic or unchecked workflow installs produce WARN, never proof of a matching pin.
+Warnings allow exit code 0; a missing tag or a tag on another commit is a FAIL.
+ShipState does not build packages or verify remote tags, releases, or registries.
+See [the complete scope and limitations](docs/limitations.md) for parsing details.
 
-Workflow YAML is parsed safely before inspecting a limited static bash/sh syntax.
-Shell commands, GitHub expressions and environment variables are never executed.
-Static exact self-package pins are compared with the project version. Dynamic
-versions, ranges, direct URLs and local project installs warn rather than claiming
-a version match. Warnings keep exit code 0 and the existing JSON status; they do
-not prove that an unchecked install is consistent.
-
-The scanner respects workflow/job/step shell and working-directory defaults.
-Explicit bash/sh and known Linux/macOS runner defaults are supported; missing
-runner declarations in workflow excerpts assume bash. Other shells and unknown
-runner defaults warn when an install may involve the project. Quoted chain
-operators are preserved. Here-documents, multiline quoting, substitutions,
-functions, sourced code and other unsupported shell flow warn when relevant.
-ShipState does not interpret `cd`, `pushd` or similar directory changes: subsequent
-requirements paths and local installs warn instead of being read from a guessed
-working directory. Wrapped directory commands and shell grouping also warn when
-local requirement paths cannot be verified. Arbitrary scripts and their effects
-are not inspected.
-
-Known safe pip global options are accepted before `install`, with their declared
-argument counts. Unknown options, opaque executables and unsupported install-like
-commands warn instead of claiming that no pin exists. Explicit `PIP_*` settings
-in workflow/job/step `env`, inline assignments or preceding exports are treated
-as configuration ambiguity. This includes `PIP_REQUIREMENT`, `PIP_CONSTRAINT`,
-index settings and `PIP_CONFIG_FILE`: their values and referenced files are not
-interpreted or read. The scanner does not inspect ambient runner configuration;
-even `--isolated` with explicit pip environment settings conservatively warns.
-These warnings do not suppress a proven stale exact pin in the command's inline
-arguments. POSIX backslash-newline continuations are removed without adding a
-space; quoted assignment names are not treated as shell assignment prefixes.
-
-Local `-r` includes request packages; `-c` includes only constrain versions and
-never establish a self-package install on their own. A bare explicit self-package
-request can use an unambiguous exact constraint in the same pip command. General
-dependency/constraint resolution is not implemented; conflicting or conditional
-constraints warn. Static requirement pins are inspected as declared; requirement
-markers are not evaluated against a hypothetical CI environment.
-
-Nested includes resolve relative to their file. Missing files, cycles, dynamic
-paths and requirements paths outside the project warn. Workflow files and
-directories outside the resolved project root are not read, including symlink
-escapes. Non-string directory fields warn rather than being coerced to paths.
-
-Missing build-system tables or required fields warn, and malformed fields fail;
-backend-path directories must exist inside the project after resolving symlinks.
-ShipState does not invoke a package build or import the configured backend, and it
-does not verify remote tags, releases, or registry contents.
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap
 

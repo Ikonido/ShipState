@@ -3,6 +3,7 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
+from shipstate.paths import resolve_project_file
 from shipstate.models import Finding, InputError
 
 _ATX_HEADING = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
@@ -39,7 +40,7 @@ def _has_version_heading(text: str, version: str) -> bool:
 
 
 def check_changelog(root: Path, version: str) -> Finding:
-    path = root / "CHANGELOG.md"
+    path = resolve_project_file(root, "CHANGELOG.md")
     if not path.is_file():
         return Finding(
             code="changelog_missing",

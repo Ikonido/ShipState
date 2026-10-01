@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from shipstate.paths import resolve_project_file
 from shipstate.models import Finding, InputError
 
 _LICENSE_NAMES = ("LICENSE", "LICENSE.md", "LICENSE.txt")
@@ -8,7 +9,7 @@ _LICENSE_NAMES = ("LICENSE", "LICENSE.md", "LICENSE.txt")
 def check_license(root: Path) -> Finding:
     present = None
     for name in _LICENSE_NAMES:
-        path = root / name
+        path = resolve_project_file(root, name)
         if not path.is_file():
             continue
         try:

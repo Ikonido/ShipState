@@ -1,0 +1,4 @@
+include CHANGELOG.md CONTRIBUTING.md SECURITY.md
+include docs/limitations.md docs/publishing.md
+
+include tests/conftest.py

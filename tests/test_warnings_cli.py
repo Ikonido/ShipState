@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from shipstate import __version__
 from shipstate.cli import main
 from shipstate.checks.runner import check_project
 from conftest import git
@@ -79,7 +80,7 @@ def test_text_output_and_success_exit_code(project_factory, capsys):
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "ShipState 0.1.0" in output
+    assert f"ShipState {__version__}" in output
     assert "Project: meshcontract" in output
     assert "PASS git tag: v0.2.1" in output
     assert "Release consistency: PASS" in output
@@ -103,7 +104,7 @@ def test_json_output_has_stable_result_shape(project_factory, capsys):
     result = json.loads(capsys.readouterr().out)
 
     assert exit_code == 1
-    assert result["shipstate_version"] == "0.1.0"
+    assert result["shipstate_version"] == __version__
     assert result["status"] == "fail"
     assert result["project"] == {"name": "meshcontract", "version": "0.2.1"}
     drift = next(item for item in result["findings"] if item["code"] == "readme_version_drift")
@@ -145,7 +146,7 @@ def test_version_and_help_options(capsys):
     with pytest.raises(SystemExit) as version_exit:
         main(["--version"])
     assert version_exit.value.code == 0
-    assert capsys.readouterr().out.strip() == "ShipState 0.1.0"
+    assert capsys.readouterr().out.strip() == f"ShipState {__version__}"
 
     with pytest.raises(SystemExit) as help_exit:
         main(["--help"])

@@ -519,7 +519,7 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
         if not workflow_dir.resolve().is_relative_to(root):
             warn(".github/workflows", "Workflow directory outside the project is not inspected.", "workflow_outside_project")
             return warnings
-        files = sorted((path for path in workflow_dir.iterdir() if path.suffix.lower() in {".yml", ".yaml"}), key=lambda item: item.name.casefold()) if workflow_dir.is_dir() else []
+        files = sorted((path for path in workflow_dir.iterdir() if path.suffix.lower() in {".yml", ".yaml"}), key=lambda item: (item.name.casefold(), item.name)) if workflow_dir.is_dir() else []
     except (OSError, RuntimeError, ValueError) as exc:
         raise InputError("workflow_unreadable", "The workflow directory could not be inspected.") from exc
 
