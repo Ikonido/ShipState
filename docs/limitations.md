@@ -30,6 +30,9 @@ versions, ranges, direct URLs and local project installs warn rather than claimi
 a version match. Warnings keep exit code 0 and the existing JSON status; they do
 not prove that an unchecked install is consistent.
 
+Warnings alone allow exit code 0. If another finding is a FAIL, the combined
+result remains `status=fail` with exit code 1.
+
 ## Shell syntax support
 
 The scanner respects workflow/job/step shell and working-directory defaults.
@@ -71,6 +74,13 @@ Nested includes resolve relative to their file. Missing files, cycles, dynamic
 paths and requirements paths outside the project warn. Workflow files and
 directories outside the resolved project root are not read, including symlink
 escapes. Non-string directory fields warn rather than being coerced to paths.
+
+The root-confinement rules above apply to workflow files, requirements files,
+and backend paths. The top-level pyproject, README, changelog, and license checks
+currently follow file symlinks, including targets outside the project.
+
+When an exact request also has conflicting or conditional self-package
+constraints, the scanner reports that ambiguity rather than verifying that pin.
 
 ## Build system checks
 
