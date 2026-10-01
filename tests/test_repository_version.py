@@ -24,3 +24,14 @@ def test_readme_tool_version_matches_repository():
     examples = re.findall(r"^\s+ShipState (\d[^\s]*)$", readme, re.MULTILINE)
     assert examples, "README.md needs the tool's example output"
     assert all(version == __version__ for version in examples)
+
+
+def test_readme_versioned_links_match_project_version():
+    metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = metadata["project"]["version"]
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    linked_versions = re.findall(
+        r"https://github\.com/Ikonido/ShipState/blob/v([^/\s)]+)/", readme
+    )
+    assert linked_versions, "README.md needs versioned repository-file links"
+    assert all(linked_version == version for linked_version in linked_versions)

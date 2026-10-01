@@ -47,6 +47,8 @@ Record user-visible changes under `## Unreleased` in CHANGELOG.md.
    in src/shipstate/__init__.py and the README's `ShipState X.Y.Z` example to match.
 3. Turn the Unreleased notes into the first version heading in CHANGELOG.md.
    Update any actual self-package installation pins; leave test fixture versions alone.
+   Update versioned README links to the new release tag (`/blob/vX.Y.Z/...`) so
+   the PyPI description links to documentation for the released version.
 4. Run `python -m pytest` on Python 3.11 and 3.12. Optionally install `build twine`,
    run `python -m build`, and run `python -m twine check dist/*` in a clean output directory.
 5. Commit the complete release metadata, then create `vX.Y.Z` on that commit.
@@ -56,5 +58,5 @@ Record user-visible changes under `## Unreleased` in CHANGELOG.md.
    Publishing configuration. The existing publish.yml runs on a **published
    GitHub Release** and attempts publication to PyPI; configure required approval
    if publication must be gated. Publishing is a separate maintainer decision.
-9. After a successful PyPI publication, update the README's
-   “PyPI releases are not available yet” statement and installation instructions.
+9. After a successful PyPI publication, verify installation from PyPI and review
+   the README's installation instructions and version badge.
