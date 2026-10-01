@@ -62,7 +62,7 @@ Use --format json for stable machine-readable output. Successful checks return a
 
 ## Scope and limitations
 
-Version 0.1 supports Python projects with a static version in pyproject.toml.
+ShipState 0.1.x supports Python projects with a static version in pyproject.toml.
 It reads local files and invokes the local Git CLI only. It does not require a
 remote or make network requests. Release tags and changelog headings use PEP 440
 version equivalence. If multiple
