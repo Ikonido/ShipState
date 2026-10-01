@@ -56,5 +56,5 @@ Record user-visible changes under `## Unreleased` in CHANGELOG.md.
    Publishing configuration. The existing publish.yml runs on a **published
    GitHub Release** and attempts publication to PyPI; configure required approval
    if publication must be gated. Publishing is a separate maintainer decision.
-9. After a successful PyPI publication, update the README's
-   “PyPI releases are not available yet” statement and installation instructions.
+9. After a successful PyPI publication, verify installation from PyPI and review
+   the README's installation instructions and version badge.

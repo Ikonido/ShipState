@@ -1,6 +1,7 @@
 # ShipState
 
 [![CI](https://github.com/Ikonido/ShipState/actions/workflows/tests.yml/badge.svg)](https://github.com/Ikonido/ShipState/actions/workflows/tests.yml)
+[![PyPI version](https://img.shields.io/pypi/v/shipstate.svg)](https://pypi.org/project/shipstate/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -8,9 +9,13 @@ Keep release state consistent before you ship.
 
 ShipState checks that your Python package version, Git tag, CHANGELOG, README install examples and CI workflow pins agree.
 
-## Install from source
+## Install
 
-Python 3.11 or newer is required. PyPI releases are not available yet.
+Python 3.11 or newer is required.
+
+    python -m pip install shipstate
+
+### Install from source
 
     git clone https://github.com/Ikonido/ShipState.git
     cd ShipState

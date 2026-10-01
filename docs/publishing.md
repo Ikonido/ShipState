@@ -6,8 +6,9 @@ and, if its build job succeeds, attempts a production PyPI upload.
 
 ## Expected production Trusted Publisher
 
-The repository side currently expects the following values. The matching
-configuration inside the maintainer's PyPI account has **not** been verified.
+The repository side expects the following values. On 2026-10-01, the matching
+pending publisher was verified in the maintainer's PyPI account, and the first
+production upload succeeded using Trusted Publishing.
 
 | Field | Expected value |
 | --- | --- |
@@ -52,7 +53,11 @@ downloads those artifacts from the same run and uploads to TestPyPI. A final job
 reads dependencies from the tested tag, installs them from production PyPI, fetches
 the wheel from TestPyPI without dependencies, compares it byte-for-byte with the
 built wheel, and checks the installed package. The production workflow is unchanged.
-No TestPyPI publisher registration or upload has been verified or executed yet.
+On 2026-10-01, the publisher registration and upload were verified for `v0.1.1`
+at commit `d228049513f313c57cf78ae51eaa179180a32b3a`.
+[TestPyPI run 36840245358](https://github.com/Ikonido/ShipState/actions/runs/36840245358)
+passed all three jobs: 609 tests, self-check, build/twine, wheel/sdist smoke tests,
+and installation of the published wheel with a byte-for-byte artifact comparison.
 
 After the workflow is merged into `main` and the remote tag's CI is green:
 
@@ -122,7 +127,8 @@ Required reviewers includes `Ikonido`, Prevent self-review is disabled, and
 administrator bypass is disabled. Production `pypi` allows only Tag `v*` rules
 (0 branch rules); `testpypi` allows only Branch `main` (0 tag rules). Recheck these
 settings before publishing: repository settings can change independently of Git.
-Publisher registration on TestPyPI and PyPI remains unverified.
+Publisher registration and uploads on both TestPyPI and PyPI were subsequently
+verified for `v0.1.1` on the same date.
 
 ## Release order: remote tag, draft, review, publish
 
@@ -175,9 +181,25 @@ artifact download uses the same run by default, and only the `publish` job has
 `id-token: write`. Environment Required reviewers are a separate GitHub setting;
 their presence cannot be established from the YAML alone.
 
-Uploaded filenames cannot be reused, including after deleting files. Keep the
-README's “PyPI releases are not available yet” statement until a production upload
-has succeeded.
+Uploaded filenames cannot be reused, including after deleting files.
+
+## Verified first production release
+
+On 2026-10-01, the existing remote tag `v0.1.1` was verified at commit
+`d228049513f313c57cf78ae51eaa179180a32b3a`, and its Tests run passed on Python
+3.11 and 3.12, including release-consistency. The GitHub Release was saved as a
+draft, reviewed, and then published. After the production build passed 609 tests,
+self-check, build/twine, and wheel/sdist smoke tests, the publishing job waited
+for the required `pypi` approval before uploading its artifacts.
+
+[Production run 36843723825](https://github.com/Ikonido/ShipState/actions/runs/36843723825)
+succeeded, publishing the wheel and sdist to
+[PyPI 0.1.1](https://pypi.org/project/shipstate/0.1.1/).
+A fresh Python 3.11 environment installed `shipstate==0.1.1` from production PyPI;
+`pip check` found no broken requirements, `shipstate --version` returned 0.1.1,
+and `shipstate check .` on a clean checkout of the release tag returned PASS/0
+with the five expected workflow-scanning warnings.
+The README now documents PyPI installation and includes a PyPI version badge.
 
 References:
 
