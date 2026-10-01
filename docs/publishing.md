@@ -117,8 +117,12 @@ and branch rules separately; a branch named `v0.1.1` must not qualify as a tag.
 Required reviewers are available for public repositories on current GitHub plans;
 availability is more restrictive for private repositories.
 
-The configured environment and its rules have not been verified or changed by
-this review. Do not publish a Release until the gate is configured and checked.
+On 2026-10-01, both environments were configured and verified in GitHub Settings:
+Required reviewers includes `Ikonido`, Prevent self-review is disabled, and
+administrator bypass is disabled. Production `pypi` allows only Tag `v*` rules
+(0 branch rules); `testpypi` allows only Branch `main` (0 tag rules). Recheck these
+settings before publishing: repository settings can change independently of Git.
+Publisher registration on TestPyPI and PyPI remains unverified.
 
 ## Release order: remote tag, draft, review, publish
 
