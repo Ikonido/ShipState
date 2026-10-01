@@ -1,0 +1,15 @@
+ShipState 0.1.1
+
+Project: meshcontract
+Version: 0.2.1
+
+PASS package version: 0.2.1
+PASS git tag: v0.2.1
+WARN The Git working tree has staged, unstaged, or untracked changes; the release tag does not capture them.
+PASS changelog: 0.2.1 found
+FAIL README pin: meshcontract==0.2.0
+PASS workflow pin: meshcontract==0.2.1
+PASS license: LICENSE found
+PASS build system: present
+
+Release consistency: FAIL

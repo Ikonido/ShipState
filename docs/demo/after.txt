@@ -1,0 +1,15 @@
+ShipState 0.1.1
+
+Project: meshcontract
+Version: 0.2.1
+
+PASS package version: 0.2.1
+PASS git tag: v0.2.1
+PASS The Git working tree is clean.
+PASS changelog: 0.2.1 found
+PASS README pin: meshcontract==0.2.1
+PASS workflow pin: meshcontract==0.2.1
+PASS license: LICENSE found
+PASS build system: present
+
+Release consistency: PASS
