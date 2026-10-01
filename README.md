@@ -9,6 +9,10 @@ Keep release state consistent before you ship.
 
 ShipState checks that your Python package version, Git tag, CHANGELOG, README install examples and CI workflow pins agree.
 
+![ShipState detects a stale README pin, then passes after the pin is corrected](https://raw.githubusercontent.com/Ikonido/ShipState/main/docs/demo.gif)
+
+Real CLI output from a fictional local project: find a stale README pin, correct it, and check again.
+
 ## Install
 
 Python 3.11 or newer is required.
