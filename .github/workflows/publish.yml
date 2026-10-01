@@ -10,6 +10,7 @@ permissions:
 jobs:
   build:
     name: Build and smoke-test release artifacts
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -46,12 +47,14 @@ jobs:
               check=True,
               capture_output=True,
               text=True,
+              timeout=10,
           ).stdout.strip()
           checked_out_commit = subprocess.run(
               ["git", "rev-parse", "HEAD"],
               check=True,
               capture_output=True,
               text=True,
+              timeout=10,
           ).stdout.strip()
           if tagged_commit != checked_out_commit:
               raise SystemExit("checked-out commit does not match the release tag")
@@ -98,6 +101,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
+    timeout-minutes: 10
     needs: build
     runs-on: ubuntu-latest
     environment:
