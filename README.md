@@ -1,5 +1,9 @@
 # ShipState
 
+[![CI](https://github.com/Ikonido/ShipState/actions/workflows/tests.yml/badge.svg)](https://github.com/Ikonido/ShipState/actions/workflows/tests.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Keep release state consistent before you ship.
 
 ShipState checks that your Python package version, Git tag, CHANGELOG, README install examples and CI workflow pins agree.
@@ -70,6 +74,8 @@ Dynamic or unchecked workflow installs produce WARN, never proof of a matching p
 Warnings allow exit code 0; a missing tag or a tag on another commit is a FAIL.
 ShipState does not build packages or verify remote tags, releases, or registries.
 See [the complete scope and limitations](docs/limitations.md) for parsing details.
+
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap
 
