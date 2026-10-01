@@ -40,7 +40,7 @@ def _quote_content(line: str, limit: int | None = None) -> tuple[int, str]:
 
 def _pin_contexts(text: str) -> str:
     """Extract code examples and explicit install lines, excluding ordinary prose."""
-    contexts = []
+    contexts: list[str] = []
     fence_char = None
     fence_size = 0
     fence_quote_depth = 0

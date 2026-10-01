@@ -511,7 +511,9 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
                     and all(not c.marker and not c.extras and not c.url for _, c in install.constraints)
                     and all(pin is not None for _, pin in constraint_pins)
                     and len({pin for _, pin in constraint_pins}) == 1):
-                pins.append((constraint_pins[0][0], constraint_pins[0][1]))
+                pinned = constraint_pins[0][1]
+                assert pinned is not None
+                pins.append((constraint_pins[0][0], pinned))
             else:
                 warn(source, f"The requirement for {project_name} has no statically verifiable exact version.", "workflow_version_not_exact")
 

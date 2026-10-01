@@ -4,7 +4,6 @@ import pytest
 
 from shipstate.checks.runner import check_project
 from shipstate.cli import main
-from shipstate.models import InputError
 from conftest import git
 
 
