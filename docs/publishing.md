@@ -34,12 +34,35 @@ TestPyPI supports Trusted Publishing with the same PyPA publish action and
 publisher configuration from production PyPI. A TestPyPI upload does not test the
 production account's publisher registration.
 
-Use a separate manually triggered test workflow/environment (for example,
-`publish-test.yml` / `testpypi`) and register **those exact values** on TestPyPI;
-keep the existing production workflow unchanged. Give only the test publishing
-job `id-token: write` and download distributions built and tested from the intended
-tag. This document prepares the procedure; no test publishing workflow or upload
-has been created or executed.
+The separate `.github/workflows/publish-test.yml` uses manual `workflow_dispatch`
+and environment `testpypi`. Register a TestPyPI publisher with project `shipstate`,
+owner `Ikonido`, repository `ShipState`, workflow filename `publish-test.yml`,
+and environment `testpypi`. These are separate from the production publisher.
+
+Create `testpypi` with Required reviewers before running it. Dispatch the workflow
+from `main`, with input `tag: v0.1.1`; dispatches from other refs are skipped.
+If restricting deployment refs for this test environment, allow **branch `main`**:
+environment rules check the workflow run's ref, while the build explicitly checks
+out `refs/tags/<input tag>`. This permits testing a tag created before the workflow
+was added. Keep production `pypi` restricted to **tags `v*`**.
+
+The build verifies the tag/version/commit, runs tests and self-checks, builds and
+smoke-tests the distributions. Only the publishing job has `id-token: write`; it
+downloads those artifacts from the same run and uploads to TestPyPI. A final job
+reads dependencies from the tested tag, installs them from production PyPI, fetches
+the wheel from TestPyPI without dependencies, compares it byte-for-byte with the
+built wheel, and checks the installed package. The production workflow is unchanged.
+No TestPyPI publisher registration or upload has been verified or executed yet.
+
+After the workflow is merged into `main` and the remote tag's CI is green:
+
+```sh
+gh workflow run publish-test.yml --ref main -f tag=v0.1.1
+```
+
+Wait for all three jobs to succeed before publishing the production Release.
+If verification fails after the upload, inspect the failure first: TestPyPI also
+does not allow reusing uploaded filenames, so rerunning the upload is not a remedy.
 
 After a deliberate TestPyPI upload, run the following from a clean checkout of
 the intended release tag, with Python 3.11 or newer. Read runtime dependencies
@@ -85,7 +108,14 @@ The `publish` job must wait for approval before starting. Only one listed review
 needs to approve, so list only maintainers trusted to authorize PyPI uploads.
 Disable **Allow administrators to bypass configured protection rules** if the
 confirmation must not be bypassed. Enable **Prevent self-review** only when another
-reviewer can approve; a sole maintainer must be able to approve their own release.
+reviewer can approve; leave it disabled for a sole maintainer.
+
+Under **Deployment branches and tags**, choose **Selected branches and tags**,
+add a rule with **Ref type: Tag**, pattern **`v*`**, and remove any branch rules.
+The production environment must not allow branch deployments. GitHub treats tag
+and branch rules separately; a branch named `v0.1.1` must not qualify as a tag.
+Required reviewers are available for public repositories on current GitHub plans;
+availability is more restrictive for private repositories.
 
 The configured environment and its rules have not been verified or changed by
 this review. Do not publish a Release until the gate is configured and checked.
