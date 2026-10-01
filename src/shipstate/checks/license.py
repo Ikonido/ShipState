@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from shipstate.paths import resolve_project_file
 from shipstate.models import Finding, InputError
+from shipstate.paths import resolve_project_file
 
 _LICENSE_NAMES = ("LICENSE", "LICENSE.md", "LICENSE.txt")
 

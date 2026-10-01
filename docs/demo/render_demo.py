@@ -11,13 +11,12 @@ this script; its commits and release tag exist only in a temporary repository.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
-
 
 ROOT = Path(__file__).resolve().parents[2]
 WIDTH, HEIGHT = 1120, 790

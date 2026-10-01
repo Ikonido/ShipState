@@ -1,12 +1,16 @@
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from shipstate import __version__
-from shipstate.models import InputError
-from shipstate.output import render_json_error, render_json_result, render_text_error, render_text_result
 from shipstate.checks.runner import check_project
+from shipstate.models import InputError
+from shipstate.output import (
+    render_json_error,
+    render_json_result,
+    render_text_error,
+    render_text_result,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:

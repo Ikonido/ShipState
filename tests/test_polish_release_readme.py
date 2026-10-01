@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
-
 from conftest import git
+
 from shipstate.checks.changelog import check_changelog
 from shipstate.checks.readme import check_readme
 from shipstate.checks.tag import check_tag

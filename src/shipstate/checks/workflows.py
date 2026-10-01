@@ -13,7 +13,6 @@ from packaging.version import InvalidVersion, Version
 from shipstate.checks.pins import dynamic_pin_pattern
 from shipstate.models import Finding, InputError
 
-
 _GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 _GLOBAL_FLAGS = {
     "--disable-pip-version-check", "--isolated", "--no-input", "--no-cache-dir",
@@ -511,7 +510,9 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
                     and all(not c.marker and not c.extras and not c.url for _, c in install.constraints)
                     and all(pin is not None for _, pin in constraint_pins)
                     and len({pin for _, pin in constraint_pins}) == 1):
-                pins.append((constraint_pins[0][0], constraint_pins[0][1]))
+                pinned = constraint_pins[0][1]
+                assert pinned is not None
+                pins.append((constraint_pins[0][0], pinned))
             else:
                 warn(source, f"The requirement for {project_name} has no statically verifiable exact version.", "workflow_version_not_exact")
 
@@ -609,7 +610,7 @@ def check_workflows(root: Path, project_name: str, version: str) -> list[Finding
                     known_directory = isinstance(working_directory, str) and "$" not in working_directory
                     directory = root / working_directory if known_directory else root
                     for entry in entries:
-                        if (cwd_changed or not known_directory) and (entry.startswith("-e ") or entry == "." or entry.startswith(("./", "../"))):
+                        if (cwd_changed or not known_directory) and (entry.startswith(("-e ", "./", "../")) or entry == "."):
                             warn(source, "The local install working directory cannot be resolved statically.", "workflow_working_directory_ambiguous")
                             install.incomplete = True
                         else:

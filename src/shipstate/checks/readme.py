@@ -4,8 +4,9 @@ from pathlib import Path
 from packaging.version import InvalidVersion, Version
 
 from shipstate.checks.pins import extract_pins
-from shipstate.paths import resolve_project_file
 from shipstate.models import Finding, InputError
+from shipstate.paths import resolve_project_file
+
 
 def _same_version(actual: str, expected: str) -> bool:
     try:
@@ -40,7 +41,7 @@ def _quote_content(line: str, limit: int | None = None) -> tuple[int, str]:
 
 def _pin_contexts(text: str) -> str:
     """Extract code examples and explicit install lines, excluding ordinary prose."""
-    contexts = []
+    contexts: list[str] = []
     fence_char = None
     fence_size = 0
     fence_quote_depth = 0
