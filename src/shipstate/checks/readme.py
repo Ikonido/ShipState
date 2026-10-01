@@ -4,6 +4,7 @@ from pathlib import Path
 from packaging.version import InvalidVersion, Version
 
 from shipstate.checks.pins import extract_pins
+from shipstate.paths import resolve_project_file
 from shipstate.models import Finding, InputError
 
 def _same_version(actual: str, expected: str) -> bool:
@@ -71,7 +72,7 @@ def _pin_contexts(text: str) -> str:
 
 
 def check_readme(root: Path, project_name: str, version: str) -> list[Finding]:
-    path = root / "README.md"
+    path = resolve_project_file(root, "README.md")
     if not path.is_file():
         return [
             Finding(

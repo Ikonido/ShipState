@@ -7,6 +7,7 @@ from pathlib import Path, PureWindowsPath
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.version import InvalidVersion, Version
 
+from shipstate.paths import resolve_project_file
 from shipstate.models import InputError, Project
 
 _PROJECT_NAME_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\Z")
@@ -21,7 +22,7 @@ def load_project(path: Path) -> Project:
     if not path.is_dir():
         raise InputError("project_path_invalid", "The project path must be a directory.")
 
-    pyproject = path / "pyproject.toml"
+    pyproject = resolve_project_file(path, "pyproject.toml")
     if not pyproject.is_file():
         raise InputError("pyproject_missing", "pyproject.toml was not found.")
     try:

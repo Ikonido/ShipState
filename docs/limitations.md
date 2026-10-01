@@ -75,9 +75,11 @@ paths and requirements paths outside the project warn. Workflow files and
 directories outside the resolved project root are not read, including symlink
 escapes. Non-string directory fields warn rather than being coerced to paths.
 
-The root-confinement rules above apply to workflow files, requirements files,
-and backend paths. The top-level pyproject, README, changelog, and license checks
-currently follow file symlinks, including targets outside the project.
+Root confinement also applies to top-level pyproject, README, changelog, and
+license files. A symlink resolving outside the project, even to a missing target,
+is rejected as an input error (exit code 2, JSON `status=error`) before reading
+its contents. Internal file symlinks and symlinked project roots are supported.
+Workflow and requirements escapes remain WARN; backend-path escapes remain FAIL.
 
 When an exact request also has conflicting or conditional self-package
 constraints, the scanner reports that ambiguity rather than verifying that pin.
