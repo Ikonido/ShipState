@@ -200,6 +200,11 @@ A fresh Python 3.11 environment installed `shipstate==0.1.1` from production PyP
 and `shipstate check .` on a clean checkout of the release tag returned PASS/0
 with the five expected workflow-scanning warnings.
 The README now documents PyPI installation and includes a PyPI version badge.
+Its repository-file links use absolute GitHub URLs pinned to `v0.1.1`, so they
+resolve independently of the page hosting the rendered README. The already
+published 0.1.1 distributions contain the original README with relative links;
+the revised description will be included in the next release, without replacing
+0.1.1 or moving its tag.
 
 References:
 
