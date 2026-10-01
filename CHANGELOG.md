@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.1
+
+- Reject top-level input file symlinks outside the project before reading their contents; report an input error while preserving internal symlink support.
+- Bound release build/publish jobs and release-script Git subprocesses with timeouts.
+- Include release documentation and test fixtures in source distributions.
+
 - Keep workflow finding order deterministic when file names differ only by case.
 - Check repository version metadata in tests and full release consistency in CI on version tags.
 - Move detailed limitations to docs and document development and release procedures.

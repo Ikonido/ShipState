@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shipstate"
-version = "0.1.0"
+version = "0.1.1"
 description = "Keep release state consistent before you ship."
 keywords = ["release", "consistency", "packaging", "cli", "ci"]
 readme = "README.md"

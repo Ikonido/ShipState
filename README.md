@@ -39,7 +39,7 @@ ShipState runs locally. It does not contact GitHub, PyPI, or any other service.
 For example, given a project named meshcontract at version 0.2.1:
 
     $ shipstate check .
-    ShipState 0.1.0
+    ShipState 0.1.1
 
     Project: meshcontract
     Version: 0.2.1
